@@ -39,6 +39,7 @@ COPY --from=builder /app/contracts ./contracts
 COPY --from=builder /app/api ./api
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/scripts ./scripts
 
 # 创建上传目录
 RUN mkdir -p /app/dist/public/uploads

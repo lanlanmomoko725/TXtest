@@ -23,13 +23,15 @@ services:
   db:
     image: mysql:8.0
     container_name: TXtest-db
+    env_file:
+      - .env.local
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-TXtest123}
+      - MYSQL_ROOT_PASSWORD=TXtest725
       - MYSQL_DATABASE=TXtest
       - MYSQL_USER=TXtest
-      - MYSQL_PASSWORD=${DB_PASSWORD:-TXtest456}
+      - MYSQL_PASSWORD=TXtest725
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     restart: unless-stopped
@@ -45,7 +47,7 @@ services:
     image: nginx:alpine
     container_name: TXtest-nginx
     ports:
-      - "80:80"
+      - "81:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./uploads:/app/dist/public/uploads:ro
