@@ -3,7 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: tianxiang-app
+    container_name: TXtest-app
+
     ports:
       - "3000:3000"
     environment:
@@ -17,16 +18,16 @@ services:
       db:
         condition: service_healthy
     networks:
-      - tianxiang-network
+      - TXtest-network
 
   db:
     image: mysql:8.0
-    container_name: tianxiang-db
+    container_name: TXtest-db
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-tianxiang123}
-      - MYSQL_DATABASE=tianxiang
-      - MYSQL_USER=tianxiang
-      - MYSQL_PASSWORD=${DB_PASSWORD:-tianxiang456}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-TXtest123}
+      - MYSQL_DATABASE=TXtest
+      - MYSQL_USER=TXtest
+      - MYSQL_PASSWORD=${DB_PASSWORD:-TXtest456}
     ports:
       - "3306:3306"
     volumes:
@@ -38,11 +39,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - tianxiang-network
+      - TXtest-network
 
   nginx:
     image: nginx:alpine
-    container_name: tianxiang-nginx
+    container_name: TXtest-nginx
     ports:
       - "80:80"
     volumes:
@@ -52,11 +53,11 @@ services:
       - app
     restart: unless-stopped
     networks:
-      - tianxiang-network
+      - TXtest-network
 
 volumes:
   mysql-data:
 
 networks:
-  tianxiang-network:
+  TXtest-network:
     driver: bridge
