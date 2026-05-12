@@ -1,0 +1,62 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tianxiang-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env.local
+    volumes:
+      - ./uploads:/app/dist/public/uploads
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tianxiang-network
+
+  db:
+    image: mysql:8.0
+    container_name: tianxiang-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-tianxiang123}
+      - MYSQL_DATABASE=tianxiang
+      - MYSQL_USER=tianxiang
+      - MYSQL_PASSWORD=${DB_PASSWORD:-tianxiang456}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tianxiang-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: tianxiang-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./uploads:/app/dist/public/uploads:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - tianxiang-network
+
+volumes:
+  mysql-data:
+
+networks:
+  tianxiang-network:
+    driver: bridge

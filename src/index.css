@@ -1,0 +1,198 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Rich Editor Styles */
+@layer components {
+  .rich-editor p {
+    margin-bottom: 0.75em;
+    min-height: 1.5em;
+  }
+  .rich-editor p:empty::before {
+    content: "\200B";
+  }
+  .rich-editor h2 {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
+    color: #0f172a;
+  }
+  .rich-editor h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    color: #1e293b;
+  }
+  .rich-editor ul {
+    list-style-type: disc;
+    padding-left: 1.5em;
+    margin-bottom: 0.75em;
+  }
+  .rich-editor ol {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+    margin-bottom: 0.75em;
+  }
+  .rich-editor li {
+    margin-bottom: 0.25em;
+  }
+  .rich-editor blockquote {
+    border-left: 3px solid #cbd5e1;
+    padding-left: 1em;
+    margin: 0.75em 0;
+    color: #475569;
+    font-style: italic;
+  }
+  .rich-editor figure {
+    margin: 12px 0;
+    text-align: center;
+  }
+  .rich-editor figure img {
+    max-width: 75% !important;
+    width: auto;
+    border-radius: 8px;
+    display: inline-block;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .rich-editor a {
+    color: #0284c7;
+    text-decoration: underline;
+  }
+  .rich-editor b,
+  .rich-editor strong {
+    font-weight: 700;
+  }
+  .rich-editor i,
+  .rich-editor em {
+    font-style: italic;
+  }
+
+  /* Article content display styles */
+  .article-content p {
+    margin-bottom: 0.75em;
+    line-height: 1.75;
+  }
+  .article-content h2 {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin-top: 1.5em;
+    margin-bottom: 0.75em;
+    color: #0f172a;
+  }
+  .article-content h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
+    color: #1e293b;
+  }
+  .article-content ul {
+    list-style-type: disc;
+    padding-left: 1.5em;
+    margin-bottom: 0.75em;
+  }
+  .article-content ol {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+    margin-bottom: 0.75em;
+  }
+  .article-content li {
+    margin-bottom: 0.3em;
+  }
+  .article-content blockquote {
+    border-left: 3px solid #cbd5e1;
+    padding-left: 1em;
+    margin: 1em 0;
+    color: #475569;
+    font-style: italic;
+  }
+  .article-content figure {
+    margin: 16px 0;
+    text-align: center;
+  }
+  .article-content figure img {
+    max-width: 75%;
+    width: auto;
+    border-radius: 8px;
+    display: inline-block;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .article-content a {
+    color: #0284c7;
+    text-decoration: underline;
+  }
+}
