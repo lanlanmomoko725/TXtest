@@ -5,7 +5,17 @@ import { listUsers, countUsers, updateUser, findUserById, findUserByEmail, creat
 import { createAuditLog } from "./lib/audit";
 import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, asc } from "drizzle-orm";
+
+async function getRootAdminId(): Promise<number | null> {
+  const rows = await getDb()
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(schema.users.role, "admin"))
+    .orderBy(asc(schema.users.id))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
 
 export const adminRouter = createRouter({
   users: createRouter({
@@ -20,7 +30,8 @@ export const adminRouter = createRouter({
         const { offset = 0, limit = 50 } = input ?? {};
         const users = await listUsers({ offset, limit });
         const total = await countUsers();
-        return { users, total };
+        const rootAdminId = await getRootAdminId();
+        return { users, total, rootAdminId };
       }),
 
     updateRole: adminQuery
@@ -33,6 +44,11 @@ export const adminRouter = createRouter({
       .mutation(async ({ ctx, input }) => {
         if (input.userId === ctx.user.id) {
           throw new Error("不能修改自己的角色");
+        }
+
+        const rootAdminId = await getRootAdminId();
+        if (rootAdminId && input.userId === rootAdminId) {
+          throw new Error("不能修改初始管理员的角色");
         }
 
         const target = await findUserById(input.userId);
@@ -97,6 +113,11 @@ export const adminRouter = createRouter({
       .mutation(async ({ ctx, input }) => {
         if (input.userId === ctx.user.id) {
           throw new Error("不能删除自己的账号");
+        }
+
+        const rootAdminId = await getRootAdminId();
+        if (rootAdminId && input.userId === rootAdminId) {
+          throw new Error("不能删除初始管理员");
         }
 
         const target = await findUserById(input.userId);

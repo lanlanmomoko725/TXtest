@@ -60,6 +60,7 @@ export default function AdminUsers() {
 
   const users = data?.users ?? [];
   const total = data?.total ?? 0;
+  const rootAdminId = data?.rootAdminId;
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -127,9 +128,14 @@ export default function AdminUsers() {
                   <TableCell>{u.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                   <TableCell>
-                    <Badge variant={u.role === "admin" ? "default" : "secondary"}>
-                      {u.role === "admin" ? "管理员" : "用户"}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge variant={u.role === "admin" ? "default" : "secondary"}>
+                        {u.role === "admin" ? "管理员" : "用户"}
+                      </Badge>
+                      {u.id === rootAdminId && (
+                        <Badge variant="outline" className="text-xs border-amber-400 text-amber-600">初始</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
