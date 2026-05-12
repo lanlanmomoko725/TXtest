@@ -1,6 +1,7 @@
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { createRouter, adminQuery } from "./middleware";
-import { listUsers, countUsers, updateUser, findUserById } from "./queries/users";
+import { listUsers, countUsers, updateUser, findUserById, findUserByEmail, createEmailUser, deleteUser } from "./queries/users";
 import { createAuditLog } from "./lib/audit";
 import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
@@ -48,6 +49,69 @@ export const adminRouter = createRouter({
           targetType: "user",
           targetId: input.userId,
           details: { oldRole, newRole: input.role, email: target.email },
+        });
+
+        return { success: true };
+      }),
+
+    create: adminQuery
+      .input(
+        z.object({
+          name: z.string().min(1).max(50),
+          email: z.string().email(),
+          password: z.string().min(6).max(100),
+          role: z.enum(["user", "admin"]).default("admin"),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const existing = await findUserByEmail(input.email);
+        if (existing) {
+          throw new Error("该邮箱已被使用");
+        }
+
+        const hashedPassword = await bcrypt.hash(input.password, 10);
+        const user = await createEmailUser({
+          name: input.name,
+          email: input.email,
+          password: hashedPassword,
+          role: input.role,
+        });
+
+        await createAuditLog({
+          userId: ctx.user.id,
+          action: "create_user",
+          targetType: "user",
+          targetId: user?.id,
+          details: { email: input.email, role: input.role, name: input.name },
+        });
+
+        return { success: true, user };
+      }),
+
+    delete: adminQuery
+      .input(
+        z.object({
+          userId: z.number(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (input.userId === ctx.user.id) {
+          throw new Error("不能删除自己的账号");
+        }
+
+        const target = await findUserById(input.userId);
+        if (!target) {
+          throw new Error("用户不存在");
+        }
+
+        await deleteUser(input.userId);
+
+        await createAuditLog({
+          userId: ctx.user.id,
+          action: "delete_user",
+          targetType: "user",
+          targetId: input.userId,
+          details: { email: target.email, name: target.name },
         });
 
         return { success: true };

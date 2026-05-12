@@ -3,9 +3,12 @@ import { trpc } from "@/providers/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Shield, ShieldOff } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Loader2, Shield, ShieldOff, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function AdminUsers() {
@@ -18,6 +21,34 @@ export default function AdminUsers() {
   const updateRole = trpc.admin.users.updateRole.useMutation({
     onSuccess: () => utils.admin.users.list.invalidate(),
   });
+  const deleteUser = trpc.admin.users.delete.useMutation({
+    onSuccess: () => utils.admin.users.list.invalidate(),
+  });
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"user" | "admin">("admin");
+  const [createError, setCreateError] = useState("");
+  const createUser = trpc.admin.users.create.useMutation({
+    onSuccess: () => {
+      utils.admin.users.list.invalidate();
+      setCreateOpen(false);
+      setNewName("");
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("admin");
+      setCreateError("");
+    },
+    onError: (err) => setCreateError(err.message),
+  });
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError("");
+    createUser.mutate({ name: newName, email: newEmail, password: newPassword, role: newRole });
+  };
 
   if (isLoading) {
     return (
@@ -34,8 +65,51 @@ export default function AdminUsers() {
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>用户管理</CardTitle>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="gap-1">
+                <Plus className="h-4 w-4" /> 创建用户
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>创建用户</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div>
+                  <Label htmlFor="name">名称</Label>
+                  <Input id="name" value={newName} onChange={(e) => setNewName(e.target.value)} required />
+                </div>
+                <div>
+                  <Label htmlFor="email">邮箱</Label>
+                  <Input id="email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
+                </div>
+                <div>
+                  <Label htmlFor="password">密码</Label>
+                  <Input id="password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={6} />
+                </div>
+                <div>
+                  <Label>角色</Label>
+                  <Select value={newRole} onValueChange={(v: "user" | "admin") => setNewRole(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">用户</SelectItem>
+                      <SelectItem value="admin">管理员</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {createError && <p className="text-sm text-red-600">{createError}</p>}
+                <Button type="submit" className="w-full" disabled={createUser.isPending}>
+                  {createUser.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  创建
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </CardHeader>
         <CardContent>
           <Table>
@@ -60,32 +134,48 @@ export default function AdminUsers() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {currentUser?.id === u.id ? (
-                      <span className="text-xs text-muted-foreground">当前账号</span>
-                    ) : (
-                      <Select
-                        value={u.role}
-                        onValueChange={(role: "user" | "admin") =>
-                          updateRole.mutate({ userId: u.id, role })
-                        }
-                      >
-                        <SelectTrigger className="w-28 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">
-                            <span className="flex items-center gap-1">
-                              <ShieldOff className="h-3 w-3" /> 用户
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="admin">
-                            <span className="flex items-center gap-1">
-                              <Shield className="h-3 w-3" /> 管理员
-                            </span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {currentUser?.id === u.id ? (
+                        <span className="text-xs text-muted-foreground">当前账号</span>
+                      ) : (
+                        <>
+                          <Select
+                            value={u.role}
+                            onValueChange={(role: "user" | "admin") =>
+                              updateRole.mutate({ userId: u.id, role })
+                            }
+                          >
+                            <SelectTrigger className="w-28 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="user">
+                                <span className="flex items-center gap-1">
+                                  <ShieldOff className="h-3 w-3" /> 用户
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="admin">
+                                <span className="flex items-center gap-1">
+                                  <Shield className="h-3 w-3" /> 管理员
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-700"
+                            onClick={() => {
+                              if (confirm(`确定删除用户「${u.name}」(${u.email})？`)) {
+                                deleteUser.mutate({ userId: u.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

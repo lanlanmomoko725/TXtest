@@ -85,3 +85,9 @@ export async function findAdminCount(): Promise<number> {
     .where(eq(schema.users.role, "admin"));
   return result.length;
 }
+
+export async function deleteUser(id: number) {
+  await getDb()
+    .delete(schema.users)
+    .where(eq(schema.users.id, id));
+}
