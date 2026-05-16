@@ -18,20 +18,20 @@ export default function SkyExplanation() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
-          <Link to="/" className="hover:text-sky-600">首页</Link>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <Link to="/" className="hover:text-primary">首页</Link>
           <span>/</span>
-          <span className="text-slate-900 font-medium">天象解说图</span>
+          <span className="text-foreground font-medium">天象解说图</span>
         </div>
 
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Link to="/" className="p-2 rounded-full hover:bg-slate-100 transition-colors">
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
+            <Link to="/" className="p-2 rounded-full hover:bg-muted transition-colors">
+              <ArrowLeft className="h-5 w-5 text-muted-foreground" />
             </Link>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <ImageIcon className="h-6 w-6 text-sky-600" />
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <ImageIcon className="h-6 w-6 text-primary" />
               天象解说图
             </h1>
           </div>
@@ -76,9 +76,9 @@ export default function SkyExplanation() {
                 </div>
               ) : (
                 <div className="text-center py-20">
-                  <FileText className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-                  <h3 className="text-lg font-medium text-slate-700 mb-2">暂无文章</h3>
-                  <p className="text-slate-500">还没有发布任何解说文章</p>
+                  <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+                  <h3 className="text-lg font-medium text-foreground/80 mb-2">暂无文章</h3>
+                  <p className="text-muted-foreground">还没有发布任何解说文章</p>
                 </div>
               )}
             </TabsContent>
@@ -92,18 +92,18 @@ export default function SkyExplanation() {
                 </div>
               ) : (
                 <div className="text-center py-20">
-                  <StickyNote className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-                  <h3 className="text-lg font-medium text-slate-700 mb-2">暂无帖子</h3>
-                  <p className="text-slate-500">还没有发布任何帖子</p>
+                  <StickyNote className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+                  <h3 className="text-lg font-medium text-foreground/80 mb-2">暂无帖子</h3>
+                  <p className="text-muted-foreground">还没有发布任何帖子</p>
                 </div>
               )}
             </TabsContent>
           </Tabs>
         ) : (
           <div className="text-center py-20">
-            <ImageIcon className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-            <h3 className="text-lg font-medium text-slate-700 mb-2">暂无内容</h3>
-            <p className="text-slate-500">还没有天象记录，快来发布第一条吧！</p>
+            <ImageIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+            <h3 className="text-lg font-medium text-foreground/80 mb-2">暂无内容</h3>
+            <p className="text-muted-foreground">还没有天象记录，快来发布第一条吧！</p>
           </div>
         )}
       </div>

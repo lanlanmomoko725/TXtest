@@ -37,29 +37,29 @@ export default function CategoryPage() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
-          <Link to="/" className="hover:text-sky-600">首页</Link>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <Link to="/" className="hover:text-primary">首页</Link>
           <span>/</span>
-          <Link to="/sky-events" className="hover:text-sky-600">{isRegion ? "按地区分类" : "按天象分类"}</Link>
+          <Link to="/sky-events" className="hover:text-primary">{isRegion ? "按地区分类" : "按天象分类"}</Link>
           <span>/</span>
-          <span className="text-slate-900 font-medium">{title}</span>
+          <span className="text-foreground font-medium">{title}</span>
         </div>
 
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <Link to="/" className="p-2 rounded-full hover:bg-slate-100 transition-colors">
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
+            <Link to="/" className="p-2 rounded-full hover:bg-muted transition-colors">
+              <ArrowLeft className="h-5 w-5 text-muted-foreground" />
             </Link>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              {isRegion ? <MapPin className="h-6 w-6 text-emerald-600" /> : <Cloud className="h-6 w-6 text-sky-600" />}
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              {isRegion ? <MapPin className="h-6 w-6 text-emerald-600" /> : <Cloud className="h-6 w-6 text-primary" />}
               {title}
             </h1>
             <Badge variant="secondary" className="ml-2">
               {posts?.length || 0} 条记录
             </Badge>
           </div>
-          <p className="text-slate-600 ml-11">{description}</p>
+          <p className="text-muted-foreground ml-11">{description}</p>
         </div>
 
         {/* Filter Tabs */}
@@ -83,9 +83,9 @@ export default function CategoryPage() {
           </div>
         ) : (
           <div className="text-center py-20">
-            <Cloud className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-            <h3 className="text-lg font-medium text-slate-700 mb-2">暂无内容</h3>
-            <p className="text-slate-500">该分类下还没有天象记录，快来发布第一条吧！</p>
+            <Cloud className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+            <h3 className="text-lg font-medium text-foreground/80 mb-2">暂无内容</h3>
+            <p className="text-muted-foreground">该分类下还没有天象记录，快来发布第一条吧！</p>
           </div>
         )}
       </div>

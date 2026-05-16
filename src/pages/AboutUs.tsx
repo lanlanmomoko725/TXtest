@@ -36,7 +36,7 @@ export default function AboutUs() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -45,19 +45,19 @@ export default function AboutUs() {
     <div className="min-h-screen">
       <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-none">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-4 max-w-5xl mx-auto">
-          <Link to="/" className="hover:text-sky-600">首页</Link>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4 max-w-5xl mx-auto">
+          <Link to="/" className="hover:text-primary">首页</Link>
           <span>/</span>
-          <span className="text-slate-900 font-medium">关于我们</span>
+          <span className="text-foreground font-medium">关于我们</span>
         </div>
 
         {/* Header */}
         <div className="mb-8 max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/" className="p-2 rounded-full hover:bg-slate-100 transition-colors">
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
+            <Link to="/" className="p-2 rounded-full hover:bg-muted transition-colors">
+              <ArrowLeft className="h-5 w-5 text-muted-foreground" />
             </Link>
-            <h1 className="text-2xl font-bold text-slate-900">关于我们</h1>
+            <h1 className="text-2xl font-bold text-foreground">关于我们</h1>
           </div>
           {isAdmin && !isEditing && (
             <Button size="sm" variant="outline" onClick={handleStartEdit}>
@@ -94,7 +94,7 @@ export default function AboutUs() {
                 minHeight="500px"
               />
               {updateMutation.error && (
-                <p className="text-sm text-red-500">{updateMutation.error.message}</p>
+                <p className="text-sm text-destructive">{updateMutation.error.message}</p>
               )}
             </div>
           ) : about?.content ? (
@@ -104,9 +104,9 @@ export default function AboutUs() {
             />
           ) : (
             <div className="text-center py-20">
-              <Info className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-              <h3 className="text-lg font-medium text-slate-700 mb-2">暂无内容</h3>
-              <p className="text-slate-500">管理员可以编辑添加内容。</p>
+              <Info className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+              <h3 className="text-lg font-medium text-foreground/80 mb-2">暂无内容</h3>
+              <p className="text-muted-foreground">管理员可以编辑添加内容。</p>
             </div>
           )}
         </div>

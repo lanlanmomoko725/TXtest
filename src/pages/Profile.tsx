@@ -104,7 +104,7 @@ export default function Profile() {
   if (postsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -113,8 +113,8 @@ export default function Profile() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <User className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-          <h2 className="text-xl font-bold text-slate-900">用户不存在</h2>
+          <User className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+          <h2 className="text-xl font-bold text-foreground">用户不存在</h2>
         </div>
       </div>
     );
@@ -127,7 +127,7 @@ export default function Profile() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Profile Header */}
-        <div className="bg-white rounded-2xl border p-6 md:p-8 mb-8">
+        <div className="bg-card rounded-2xl border border-border/60 p-6 md:p-8 mb-8 shadow-card">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
@@ -135,7 +135,7 @@ export default function Profile() {
                   src={isEditing ? editAvatar || undefined : displayUser.avatar || undefined}
                   className="object-cover"
                 />
-                <AvatarFallback className="bg-sky-100 text-sky-700 text-2xl">
+                <AvatarFallback className="bg-primary/10 text-primary text-2xl">
                   {(isEditing ? editName : displayUser.name || "用户").slice(0, 1)}
                 </AvatarFallback>
               </Avatar>
@@ -168,19 +168,19 @@ export default function Profile() {
                         setNameError(validateName(e.target.value));
                       }}
                       placeholder="输入昵称"
-                      className={`text-lg font-bold ${nameError ? "border-red-500" : ""}`}
+                      className={`text-lg font-bold ${nameError ? "border-destructive" : ""}`}
                       maxLength={20}
                     />
                     {nameError && (
-                      <p className="text-xs text-red-500 mt-1 text-left">{nameError}</p>
+                      <p className="text-xs text-destructive mt-1 text-left">{nameError}</p>
                     )}
-                    <p className="text-xs text-slate-400 mt-1 text-left">
+                    <p className="text-xs text-muted-foreground/60 mt-1 text-left">
                       最多10个汉字或20个英文字母
                     </p>
                   </div>
                 ) : (
                   <>
-                    <h1 className="text-2xl font-bold text-slate-900">{displayUser.name || "匿名用户"}</h1>
+                    <h1 className="text-2xl font-bold text-foreground">{displayUser.name || "匿名用户"}</h1>
                     {displayUser.role === "admin" && (
                       <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
                         <Star className="h-3 w-3 mr-1" />
@@ -190,10 +190,10 @@ export default function Profile() {
                   </>
                 )}
               </div>
-              <p className="text-slate-500 text-sm mb-3">
+              <p className="text-muted-foreground text-sm mb-3">
                 注册于 {new Date(displayUser.createdAt).toLocaleDateString("zh-CN")}
               </p>
-              <div className="flex items-center justify-center md:justify-start gap-4 text-sm text-slate-600">
+              <div className="flex items-center justify-center md:justify-start gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Cloud className="h-4 w-4" />
                   {posts?.length || 0} 条记录
@@ -205,7 +205,7 @@ export default function Profile() {
               </div>
 
               {isEditing && uploading && (
-                <p className="text-xs text-slate-400 mt-2">头像上传中...</p>
+                <p className="text-xs text-muted-foreground/60 mt-2">头像上传中...</p>
               )}
 
               {isMe && (
@@ -254,8 +254,8 @@ export default function Profile() {
               </div>
             ) : (
               <div className="text-center py-16">
-                <Cloud className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                <p className="text-slate-500">暂无发布内容</p>
+                <Cloud className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-muted-foreground">暂无发布内容</p>
               </div>
             )}
           </TabsContent>
@@ -269,8 +269,8 @@ export default function Profile() {
               </div>
             ) : (
               <div className="text-center py-16">
-                <Cloud className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                <p className="text-slate-500">暂无文章</p>
+                <Cloud className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-muted-foreground">暂无文章</p>
               </div>
             )}
           </TabsContent>
@@ -284,8 +284,8 @@ export default function Profile() {
               </div>
             ) : (
               <div className="text-center py-16">
-                <Cloud className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                <p className="text-slate-500">暂无帖子</p>
+                <Cloud className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="text-muted-foreground">暂无帖子</p>
               </div>
             )}
           </TabsContent>

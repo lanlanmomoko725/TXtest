@@ -20,72 +20,74 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
   const categoryLabel = CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const plainContent = extractPlainText(post.content);
-  // Show title if it differs from auto-generated content preview; otherwise show content
   const displayTitle = post.title && post.title !== plainContent.slice(0, 30) + (plainContent.length > 30 ? "..." : "")
     ? post.title
     : plainContent;
 
   return (
-    <Link to={`/post/${post.id}`} className="group block">
-      <div className="bg-white border overflow-hidden hover:shadow-lg transition-shadow duration-300">
+    <Link to={`/post/${post.id}`} className="group block focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+      <article className="bg-card border border-border/60 rounded-xl overflow-hidden shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 ease-out-quart">
         {images.length > 0 ? (
           images.length === 1 ? (
-            <div className="aspect-[16/10] overflow-hidden bg-slate-100">
+            <div className="aspect-[16/10] overflow-hidden bg-muted">
               <img
                 src={images[0]}
-                alt={post.title}
-                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                alt={post.title || "文章配图"}
+                loading="lazy"
+                width={640}
+                height={400}
+                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out-quart"
               />
             </div>
           ) : (
-            <div className="bg-slate-100">
+            <div className="bg-muted">
               <ImageGallery images={images} alt={post.title} clickable={false} maxImages={9} />
             </div>
           )
         ) : (
-          <div className="aspect-[16/10] bg-gradient-to-br from-sky-100 to-blue-50 flex items-center justify-center">
-            <span className="text-4xl font-bold text-sky-200">{categoryLabel}</span>
+          <div className="aspect-[16/10] bg-gradient-to-br from-primary/10 via-primary/5 to-background flex items-center justify-center">
+            <span className="text-4xl font-bold text-primary/20">{categoryLabel}</span>
           </div>
         )}
         <div className="p-4">
           {!hideMeta && (
-            <div className="flex items-center gap-2 mb-2">
-              <Badge variant="secondary" className="bg-sky-50 text-sky-700 hover:bg-sky-100">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <Badge variant="secondary" className="bg-primary/8 text-primary hover:bg-primary/12 transition-colors">
                 {categoryLabel}
               </Badge>
               {post.isArticle && (
-                <Badge variant="outline" className="text-amber-600 border-amber-200">
+                <Badge variant="outline" className="text-amber-600 border-amber-200/60 hover:bg-amber-50/50 transition-colors">
                   文章
                 </Badge>
               )}
               {post.isSkyExplanation && (
-                <Badge variant="outline" className="text-purple-600 border-purple-200">
+                <Badge variant="outline" className="text-purple-600 border-purple-200/60 hover:bg-purple-50/50 transition-colors">
                   天象解说图
                 </Badge>
               )}
               {post.hasLocation && post.region && (
-                <Badge variant="outline" className="text-emerald-600 border-emerald-200 flex items-center gap-0.5">
+                <Badge variant="outline" className="text-emerald-600 border-emerald-200/60 hover:bg-emerald-50/50 transition-colors flex items-center gap-0.5">
                   <MapPin className="h-3 w-3" />
                   {post.region}
                 </Badge>
               )}
             </div>
           )}
-          <h3 className="font-semibold text-slate-900 line-clamp-1 group-hover:text-sky-700 transition-colors">
+          <h3 className="font-semibold text-card-foreground line-clamp-1 group-hover:text-primary transition-colors duration-200">
             {displayTitle}
           </h3>
           {!hideMeta && (
-            <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
+            <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-2 min-w-0">
-                <Avatar className="h-5 w-5 flex-shrink-0">
+                <Avatar className="h-5 w-5 flex-shrink-0 border border-border/50">
                   <AvatarImage src={post.author?.avatar || undefined} />
-                  <AvatarFallback className="bg-slate-200 text-slate-600 text-[10px]">
+                  <AvatarFallback className="bg-muted text-muted-foreground text-[10px]">
                     {(post.author?.name || "用户").slice(0, 1)}
                   </AvatarFallback>
                 </Avatar>
                 <span className="truncate max-w-[80px]">{post.author?.name || "匿名"}</span>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 tabular-nums">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3 flex-shrink-0" />
                   <span className="hidden sm:inline">
@@ -103,7 +105,7 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
             </div>
           )}
         </div>
-      </div>
+      </article>
     </Link>
   );
 }

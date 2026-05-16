@@ -18,11 +18,14 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
   // Single image
   if (validImages.length === 1) {
     return (
-      <div className="overflow-hidden">
+      <div className="overflow-hidden rounded-lg">
         <img
           src={validImages[0]}
           alt={alt}
-          className={`w-full max-h-[50vh] sm:max-h-[70vh] object-contain ${clickable ? "cursor-pointer" : ""}`}
+          loading="lazy"
+          width={800}
+          height={600}
+          className={`w-full max-h-[50vh] sm:max-h-[70vh] object-contain transition-transform duration-300 ${clickable ? "cursor-pointer hover:scale-[1.01]" : ""}`}
           onClick={clickable ? (e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -48,13 +51,13 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
 
   return (
     <>
-      <div className="grid grid-cols-3 gap-1">
+      <div className="grid grid-cols-3 gap-1.5">
         {displayImages.map((img, idx) => {
           const isLastPreview = capped && idx === maxImages! - 1 && remaining > 0;
           return clickable ? (
           <button
             key={idx}
-            className="relative aspect-square overflow-hidden"
+            className="relative aspect-square overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
@@ -65,10 +68,13 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
             <img
               src={img}
               alt={`${alt} ${idx + 1}`}
-              className="w-full h-full object-cover"
+              loading={idx < 3 ? "eager" : "lazy"}
+              width={300}
+              height={300}
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-[1.03]"
             />
             {isLastPreview && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-lg font-bold">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center text-white text-lg font-bold rounded-md">
                 +{remaining}
               </div>
             )}
@@ -76,15 +82,18 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
           ) : (
           <div
             key={idx}
-            className="relative aspect-square overflow-hidden"
+            className="relative aspect-square overflow-hidden rounded-md"
           >
             <img
               src={img}
               alt={`${alt} ${idx + 1}`}
+              loading="lazy"
+              width={300}
+              height={300}
               className="w-full h-full object-cover"
             />
             {isLastPreview && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-lg font-bold">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center text-white text-lg font-bold rounded-md">
                 +{remaining}
               </div>
             )}

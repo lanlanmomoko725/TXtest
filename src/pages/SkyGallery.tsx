@@ -98,10 +98,10 @@ export default function SkyGalleryPage() {
       <aside
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } fixed md:sticky top-16 md:top-16 left-0 z-40 h-[calc(100vh-4rem)] w-52 bg-white border-r shrink-0 transition-transform duration-200 overflow-y-auto md:translate-x-0`}
+        } fixed md:sticky top-16 md:top-16 left-0 z-40 h-[calc(100vh-4rem)] w-52 bg-background border-r border-border/60 shrink-0 transition-transform duration-200 overflow-y-auto md:translate-x-0`}
       >
         <div className="p-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800 mb-3 pb-2 border-b">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3 pb-2 border-b border-border/40">
             <Library className="h-4 w-4 text-purple-600" />
             天空图鉴
           </h2>
@@ -110,8 +110,8 @@ export default function SkyGalleryPage() {
             <button
               className={`flex items-center w-full px-2 py-2 text-sm rounded-md transition-colors text-left ${
                 activeCategory === ""
-                  ? "bg-purple-50 text-purple-700 font-medium"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 font-medium"
+                  : "text-muted-foreground hover:bg-muted"
               }`}
               onClick={() => setActiveCategory("")}
             >
@@ -122,8 +122,8 @@ export default function SkyGalleryPage() {
                 key={cat}
                 className={`flex items-center w-full px-2 py-2 text-sm rounded-md transition-colors text-left ${
                   activeCategory === cat
-                    ? "bg-purple-50 text-purple-700 font-medium"
-                    : "text-slate-600 hover:bg-slate-50"
+                    ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 font-medium"
+                    : "text-muted-foreground hover:bg-muted"
                 }`}
                 onClick={() => setActiveCategory(cat)}
               >
@@ -149,21 +149,21 @@ export default function SkyGalleryPage() {
           <div className="flex items-center gap-3 mb-8">
             {isMobile && (
               <button
-                className="p-2 rounded-md hover:bg-slate-100 transition-colors"
+                className="p-2 rounded-md hover:bg-muted transition-colors"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
               >
                 {sidebarOpen ? (
-                  <PanelLeftClose className="h-5 w-5 text-slate-600" />
+                  <PanelLeftClose className="h-5 w-5 text-muted-foreground" />
                 ) : (
-                  <PanelLeft className="h-5 w-5 text-slate-600" />
+                  <PanelLeft className="h-5 w-5 text-muted-foreground" />
                 )}
               </button>
             )}
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <Library className="h-6 w-6 text-purple-600" />
               天空图鉴
             </h1>
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-muted-foreground/50">
               {activeCategory || allLabel} · {posts?.length || 0} 条记录
             </span>
           </div>
@@ -195,7 +195,7 @@ export default function SkyGalleryPage() {
                   {/* 拖拽手柄 (仅管理员) */}
                   {isAdmin && (
                     <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">
-                      <GripVertical className="h-5 w-5 text-slate-400 bg-white/80 rounded" />
+                      <GripVertical className="h-5 w-5 text-muted-foreground/50 bg-background/80 rounded" />
                     </div>
                   )}
                   <PostCard post={post} hideMeta />
@@ -204,9 +204,9 @@ export default function SkyGalleryPage() {
             </div>
           ) : (
             <div className="text-center py-20">
-              <Library className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-              <h3 className="text-lg font-medium text-slate-700 mb-2">暂无内容</h3>
-              <p className="text-slate-500">该分类下还没有内容。</p>
+              <Library className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+              <h3 className="text-lg font-medium text-foreground/80 mb-2">暂无内容</h3>
+              <p className="text-muted-foreground">该分类下还没有内容。</p>
             </div>
           )}
         </div>

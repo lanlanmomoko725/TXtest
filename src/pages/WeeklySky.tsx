@@ -64,7 +64,7 @@ export default function WeeklySky() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -73,19 +73,19 @@ export default function WeeklySky() {
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-4">
-          <Link to="/" className="hover:text-sky-600">首页</Link>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+          <Link to="/" className="hover:text-primary">首页</Link>
           <span>/</span>
-          <span className="text-slate-900 font-medium">每周天象</span>
+          <span className="text-foreground font-medium">每周天象</span>
         </div>
 
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/" className="p-2 rounded-full hover:bg-slate-100 transition-colors">
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
+            <Link to="/" className="p-2 rounded-full hover:bg-muted transition-colors">
+              <ArrowLeft className="h-5 w-5 text-muted-foreground" />
             </Link>
-            <h1 className="text-2xl font-bold text-slate-900">每周天象</h1>
+            <h1 className="text-2xl font-bold text-foreground">每周天象</h1>
           </div>
           {isAdmin && !isEditing && (
             <Button size="sm" variant="outline" onClick={handleStartEdit}>
@@ -112,17 +112,17 @@ export default function WeeklySky() {
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-2xl border p-6 md:p-8">
+        <div className="bg-card rounded-2xl border border-border/60 p-6 md:p-8 shadow-card">
           {isEditing ? (
             <div className="space-y-6">
               {/* Image Upload */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">封面图片</label>
-                <div className="relative w-full rounded-xl overflow-hidden bg-slate-100">
+                <label className="block text-sm font-medium text-foreground/80 mb-2">封面图片</label>
+                <div className="relative w-full rounded-xl overflow-hidden bg-muted">
                   {editImage ? (
                     <img src={editImage} alt="封面" className="w-full h-auto object-contain" />
                   ) : (
-                    <div className="flex items-center justify-center aspect-video text-slate-400">
+                    <div className="flex items-center justify-center aspect-video text-muted-foreground/50">
                       <Camera className="h-12 w-12" />
                     </div>
                   )}
@@ -146,7 +146,7 @@ export default function WeeklySky() {
 
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">标题</label>
+                <label className="block text-sm font-medium text-foreground/80 mb-2">标题</label>
                 <Input
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
@@ -157,7 +157,7 @@ export default function WeeklySky() {
 
               {/* Content */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">文字介绍</label>
+                <label className="block text-sm font-medium text-foreground/80 mb-2">文字介绍</label>
                 <Textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
@@ -167,7 +167,7 @@ export default function WeeklySky() {
               </div>
 
               {updateMutation.error && (
-                <p className="text-sm text-red-500">{updateMutation.error.message}</p>
+                <p className="text-sm text-destructive">{updateMutation.error.message}</p>
               )}
             </div>
           ) : (
@@ -183,24 +183,24 @@ export default function WeeklySky() {
                 </div>
               ) : (
                 <div className="w-full aspect-video rounded-xl flex items-center justify-center">
-                  <Star className="h-16 w-16 text-slate-300" />
+                  <Star className="h-16 w-16 text-muted-foreground/40" />
                 </div>
               )}
 
               {/* Title */}
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 text-center">
+              <h2 className="text-2xl md:text-3xl font-bold text-foreground text-center">
                 {weeklySky?.title || "每周天象"}
               </h2>
 
               {/* Content */}
               {weeklySky?.content ? (
                 <div className="prose prose-slate max-w-none">
-                  <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap">
                     {weeklySky.content}
                   </p>
                 </div>
               ) : (
-                <p className="text-slate-400 text-center">暂无内容，管理员可以编辑添加。</p>
+                <p className="text-muted-foreground/50 text-center">暂无内容，管理员可以编辑添加。</p>
               )}
             </div>
           )}

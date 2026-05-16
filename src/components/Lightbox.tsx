@@ -125,7 +125,7 @@ export default function Lightbox({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md animate-fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -133,7 +133,8 @@ export default function Lightbox({
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+        className="absolute top-4 right-4 z-10 p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
+        aria-label="关闭"
       >
         <X className="h-5 w-5" />
       </button>
@@ -145,7 +146,8 @@ export default function Lightbox({
             e.stopPropagation();
             handlePrev();
           }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
+          aria-label="上一张"
         >
           <ChevronLeft className="h-6 w-6" />
         </button>
@@ -158,7 +160,8 @@ export default function Lightbox({
             e.stopPropagation();
             handleNext();
           }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
+          aria-label="下一张"
         >
           <ChevronRight className="h-6 w-6" />
         </button>
@@ -181,7 +184,7 @@ export default function Lightbox({
         <img
           src={images[currentIndex]}
           alt={`图片 ${currentIndex + 1}`}
-          className="max-w-[90vw] max-h-[85vh] w-auto h-auto object-contain rounded-lg"
+          className="max-w-[90vw] max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-elevated"
           style={{
             transform: `translateX(${dragOffset}px)`,
             transition: isDragging ? "none" : "transform 0.2s ease-out",
@@ -200,11 +203,12 @@ export default function Lightbox({
                 e.stopPropagation();
                 onNavigate(idx);
               }}
-              className={`h-2 rounded-full transition-all ${
+              className={`h-2 rounded-full transition-all duration-300 ${
                 idx === currentIndex
                   ? "w-6 bg-white"
-                  : "w-2 bg-white/50 hover:bg-white/70"
+                  : "w-2 bg-white/40 hover:bg-white/60"
               }`}
+              aria-label={`切换到第 ${idx + 1} 张`}
             />
           ))}
         </div>

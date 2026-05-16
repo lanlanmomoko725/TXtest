@@ -33,19 +33,25 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-50 to-white px-4">
-      <Link to="/" className="absolute top-6 left-6 flex items-center gap-1 text-sm text-slate-500 hover:text-sky-600">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-50 via-white to-white dark:from-slate-950 dark:via-background dark:to-background px-4 relative overflow-hidden">
+      {/* Decorative background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -bottom-1/2 -left-1/4 w-[500px] h-[500px] rounded-full bg-indigo-500/5 blur-3xl" />
+      </div>
+
+      <Link to="/" className="absolute top-6 left-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors z-10">
         <ArrowLeft className="h-4 w-4" />
         返回首页
       </Link>
 
-      <div className="flex items-center gap-2 mb-8 text-2xl font-bold text-slate-900">
-        <Cloud className="h-7 w-7 text-sky-600" />
+      <div className="flex items-center gap-2 mb-8 text-2xl font-bold text-foreground z-10">
+        <Cloud className="h-7 w-7 text-primary" />
         <span>天象志</span>
       </div>
 
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center pb-2">
+      <Card className="w-full max-w-sm shadow-elevated border-border/60 z-10">
+        <CardHeader className="text-center pb-3">
           <CardTitle className="text-lg">欢迎回来</CardTitle>
         </CardHeader>
         <CardContent>
@@ -55,10 +61,13 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="请输入邮箱"
+                autoComplete="email"
+                inputMode="email"
+                placeholder="请输入邮箱…"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1"
+                className="mt-1.5 bg-background"
+                spellCheck={false}
               />
             </div>
             <div>
@@ -66,18 +75,19 @@ export default function Login() {
               <Input
                 id="password"
                 type="password"
-                placeholder="请输入密码"
+                autoComplete="current-password"
+                placeholder="请输入密码…"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1"
+                className="mt-1.5 bg-background"
               />
             </div>
             {loginError && (
-              <p className="text-sm text-red-600">{loginError}</p>
+              <p className="text-sm text-destructive animate-shake">{loginError}</p>
             )}
             <Button
               type="submit"
-              className="w-full bg-sky-600 hover:bg-sky-700"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
               disabled={loginMutation.isPending}
             >
               {loginMutation.isPending ? (
@@ -85,9 +95,9 @@ export default function Login() {
               ) : null}
               登录
             </Button>
-            <p className="text-center text-sm text-slate-500">
+            <p className="text-center text-sm text-muted-foreground">
               还没有账号？{" "}
-              <Link to="/register" className="text-sky-600 hover:underline">
+              <Link to="/register" className="text-primary hover:underline font-medium">
                 立即注册
               </Link>
             </p>

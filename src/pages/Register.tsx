@@ -103,20 +103,28 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-50 to-white px-4">
-      <Link to="/" className="absolute top-6 left-6 flex items-center gap-1 text-sm text-slate-500 hover:text-sky-600">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-sky-50 via-white to-white dark:from-slate-950 dark:via-background dark:to-background px-4 relative overflow-hidden">
+      {/* Decorative background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -bottom-1/2 -left-1/4 w-[500px] h-[500px] rounded-full bg-indigo-500/5 blur-3xl" />
+      </div>
+
+      <Link to="/" className="absolute top-6 left-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors z-10">
         <ArrowLeft className="h-4 w-4" />
         返回首页
       </Link>
 
-      <div className="flex items-center gap-2 mb-8 text-2xl font-bold text-slate-900">
-        <Cloud className="h-7 w-7 text-sky-600" />
+      <div className="flex items-center gap-2 mb-8 text-2xl font-bold text-foreground z-10">
+        <Cloud className="h-7 w-7 text-primary" />
         <span>天象志</span>
       </div>
 
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center pb-2">
-          <CardTitle className="text-lg">注册账号</CardTitle>
+      <Card className="w-full max-w-sm shadow-elevated border-border/60 z-10">
+        <CardHeader className="text-center pb-3">
+          <CardTitle className="text-lg">
+            {step === 1 ? "注册账号" : step === 2 ? "完善信息" : "注册成功"}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {step === 1 && (
@@ -126,15 +134,18 @@ export default function Register() {
                 <Input
                   id="reg-email"
                   type="email"
-                  placeholder="请输入邮箱地址"
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="请输入邮箱地址…"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1"
+                  className="mt-1.5 bg-background"
+                  spellCheck={false}
                 />
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-destructive animate-shake">{error}</p>}
               <Button
-                className="w-full bg-sky-600 hover:bg-sky-700"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
                 onClick={handleSendCode}
                 disabled={sendCode.isPending}
               >
@@ -146,9 +157,9 @@ export default function Register() {
                 获取验证码
               </Button>
               <Separator />
-              <p className="text-center text-sm text-slate-500">
+              <p className="text-center text-sm text-muted-foreground">
                 已有账号？{" "}
-                <Link to="/login" className="text-sky-600 hover:underline">
+                <Link to="/login" className="text-primary hover:underline font-medium">
                   立即登录
                 </Link>
               </p>
@@ -159,32 +170,37 @@ export default function Register() {
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <Label>邮箱</Label>
-                <div className="flex items-center gap-2 mt-1 p-2 bg-slate-50 rounded-md text-sm text-slate-700">
-                  <Mail className="h-4 w-4 text-slate-400" />
+                <div className="flex items-center gap-2 mt-1.5 p-2.5 bg-muted/60 rounded-lg text-sm text-foreground">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
                   {email}
                 </div>
               </div>
               <div>
                 <Label htmlFor="code">验证码</Label>
-                <div className="flex gap-2 mt-1">
+                <div className="flex gap-2 mt-1.5">
                   <Input
                     id="code"
-                    placeholder="6位数字"
+                    placeholder="6位数字…"
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     maxLength={6}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    className="bg-background"
+                    spellCheck={false}
                   />
                   <Button
                     type="button"
                     variant="outline"
                     disabled={countdown > 0 || sendCode.isPending}
                     onClick={handleSendCode}
+                    className="shrink-0"
                   >
                     {countdown > 0 ? `${countdown}秒` : "重新发送"}
                   </Button>
                 </div>
                 {sendCode.data?.devCode && (
-                  <p className="text-xs text-amber-600 mt-1">
+                  <p className="text-xs text-amber-600 mt-1.5">
                     开发环境验证码：{sendCode.data.devCode}
                   </p>
                 )}
@@ -193,23 +209,26 @@ export default function Register() {
                 <Label htmlFor="name">昵称</Label>
                 <Input
                   id="name"
-                  placeholder="给自己起个名字"
+                  placeholder="给自己起个名字…"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="mt-1"
+                  className="mt-1.5 bg-background"
                   maxLength={20}
+                  autoComplete="nickname"
+                  spellCheck={false}
                 />
-                <p className="text-xs text-slate-400 mt-1">最多10个汉字或20个英文字母</p>
+                <p className="text-xs text-muted-foreground mt-1">最多10个汉字或20个英文字母</p>
               </div>
               <div>
                 <Label htmlFor="reg-password">密码</Label>
                 <Input
                   id="reg-password"
                   type="password"
-                  placeholder="至少6位"
+                  autoComplete="new-password"
+                  placeholder="至少6位…"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1"
+                  className="mt-1.5 bg-background"
                 />
               </div>
               <div>
@@ -217,16 +236,17 @@ export default function Register() {
                 <Input
                   id="confirm"
                   type="password"
-                  placeholder="再次输入密码"
+                  autoComplete="new-password"
+                  placeholder="再次输入密码…"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="mt-1"
+                  className="mt-1.5 bg-background"
                 />
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-destructive animate-shake">{error}</p>}
               <Button
                 type="submit"
-                className="w-full bg-sky-600 hover:bg-sky-700"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
               >
                 完成注册
               </Button>
@@ -236,11 +256,11 @@ export default function Register() {
           {step === 3 && (
             <div className="text-center py-6 space-y-4">
               <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
-              <p className="text-slate-600">注册成功，正在跳转...</p>
+              <p className="text-muted-foreground">注册成功，正在跳转…</p>
               {register.isPending && (
-                <Loader2 className="h-5 w-5 animate-spin mx-auto text-sky-600" />
+                <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
               )}
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
           )}
         </CardContent>
