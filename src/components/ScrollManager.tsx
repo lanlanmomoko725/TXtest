@@ -51,24 +51,67 @@ export default function ScrollManager() {
     const isListPageNow = isListPage(pathname);
     const isTopPageNow = isTopPage(pathname);
 
-    // Always force scroll to top immediately on route change.
-    // This prevents the browser from inheriting the previous page's scroll position.
-    window.scrollTo(0, 0);
+    // Disable smooth scrolling via CSS to guarantee instant jumps
+    const html = document.documentElement;
+    const originalBehavior = html.style.scrollBehavior;
+    html.style.scrollBehavior = "auto";
+
+    let targetY = 0;
+    let shouldLock = false;
 
     if (wasListPage && isTopPageNow) {
       // List page -> detail/create/profile/auth: save list position
       sessionStorage.setItem(`scroll:${prevPath}`, String(scrollYRef.current));
+      targetY = 0;
+      shouldLock = true;
+    } else if (isTopPageNow) {
+      // Any other -> top page: scroll to top
+      targetY = 0;
+      shouldLock = true;
     } else if (isListPageNow) {
       // Any page -> list page: restore saved position if available
       const saved = sessionStorage.getItem(`scroll:${pathname}`);
       if (saved) {
-        // Use rAF to ensure the DOM has settled before restoring
-        requestAnimationFrame(() => {
-          window.scrollTo(0, parseInt(saved, 10));
-        });
+        targetY = parseInt(saved, 10);
         sessionStorage.removeItem(`scroll:${pathname}`);
+      } else {
+        targetY = 0;
       }
     }
+
+    // Apply immediately
+    window.scrollTo(0, targetY);
+
+    // For top pages, aggressively lock scroll to top for a short period
+    // to prevent any layout shift or browser default behavior from moving it
+    let frameId = 0;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    if (shouldLock) {
+      const lockScroll = () => {
+        if (window.scrollY !== 0) {
+          window.scrollTo(0, 0);
+        }
+        frameId = requestAnimationFrame(lockScroll);
+      };
+      frameId = requestAnimationFrame(lockScroll);
+
+      timeoutId = setTimeout(() => {
+        cancelAnimationFrame(frameId);
+        html.style.scrollBehavior = originalBehavior;
+      }, 200);
+    } else {
+      // For list pages, also give a brief window to settle before restoring smooth
+      timeoutId = setTimeout(() => {
+        html.style.scrollBehavior = originalBehavior;
+      }, 50);
+    }
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timeoutId);
+      html.style.scrollBehavior = originalBehavior;
+    };
   }, [pathname]);
 
   return null;
