@@ -223,7 +223,10 @@ export default function Navbar() {
 
       {/* Mobile Menu Panel */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed top-16 right-0 bottom-0 z-50 w-72 max-w-[85vw] bg-background/95 backdrop-blur-xl border-l border-border shadow-elevated animate-slide-in-right">
+        <div
+          className="md:hidden fixed top-16 right-0 z-50 w-72 max-w-[85vw] bg-background/95 backdrop-blur-xl border-l border-border shadow-elevated animate-slide-in-right"
+          style={{ height: "calc(100dvh - 4rem)", maxHeight: "calc(100dvh - 4rem)", overscrollBehavior: "contain" }}
+        >
           <div className="flex flex-col p-4 gap-1 overflow-y-auto h-full scrollbar-thin">
             {navItems.map((item) => {
               const isActive = location.pathname === item.to;

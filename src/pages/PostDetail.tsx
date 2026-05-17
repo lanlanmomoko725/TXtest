@@ -23,7 +23,7 @@ import {
   User,
   ChevronRight,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -31,10 +31,6 @@ export default function PostDetail() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const [commentContent, setCommentContent] = useState("");
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [postId]);
 
   const { data: post, isLoading: postLoading } = trpc.post.byId.useQuery(
     { id: postId },
