@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router";
 
 const LIST_PAGE_PREFIXES = [
@@ -33,8 +33,8 @@ export default function ScrollManager() {
   const prevPathRef = useRef(pathname);
   const scrollYRef = useRef(0);
 
-  // Track current scroll position
-  useEffect(() => {
+  // Track current scroll position continuously
+  useLayoutEffect(() => {
     const handleScroll = () => {
       scrollYRef.current = window.scrollY;
     };
@@ -42,8 +42,8 @@ export default function ScrollManager() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Handle route change scroll behavior
-  useEffect(() => {
+  // Handle route change scroll behavior synchronously before paint
+  useLayoutEffect(() => {
     const prevPath = prevPathRef.current;
     prevPathRef.current = pathname;
 
@@ -51,33 +51,24 @@ export default function ScrollManager() {
     const isListPageNow = isListPage(pathname);
     const isTopPageNow = isTopPage(pathname);
 
-    // Disable smooth scrolling for programmatic position adjustments
-    const html = document.documentElement;
-    const originalBehavior = html.style.scrollBehavior;
-    html.style.scrollBehavior = "auto";
+    // Always force scroll to top immediately on route change.
+    // This prevents the browser from inheriting the previous page's scroll position.
+    window.scrollTo(0, 0);
 
     if (wasListPage && isTopPageNow) {
-      // List page -> detail/create/profile/auth: save list position, scroll to top
+      // List page -> detail/create/profile/auth: save list position
       sessionStorage.setItem(`scroll:${prevPath}`, String(scrollYRef.current));
-      window.scrollTo(0, 0);
-    } else if (isTopPageNow) {
-      // Any other -> top page: scroll to top
-      window.scrollTo(0, 0);
     } else if (isListPageNow) {
       // Any page -> list page: restore saved position if available
       const saved = sessionStorage.getItem(`scroll:${pathname}`);
       if (saved) {
-        window.scrollTo(0, parseInt(saved, 10));
+        // Use rAF to ensure the DOM has settled before restoring
+        requestAnimationFrame(() => {
+          window.scrollTo(0, parseInt(saved, 10));
+        });
         sessionStorage.removeItem(`scroll:${pathname}`);
-      } else {
-        window.scrollTo(0, 0);
       }
     }
-
-    // Restore smooth scrolling after the current frame
-    requestAnimationFrame(() => {
-      html.style.scrollBehavior = originalBehavior;
-    });
   }, [pathname]);
 
   return null;
