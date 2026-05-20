@@ -38,9 +38,9 @@ export default function SkyEventsPage() {
       <aside
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } fixed md:sticky top-16 md:top-16 left-0 z-40 h-[calc(100vh-4rem)] w-52 bg-background border-r border-border/60 shrink-0 transition-transform duration-200 overflow-y-auto md:translate-x-0`}
+        } fixed md:sticky top-16 md:top-16 left-0 z-40 h-[calc(100dvh-4rem)] w-52 bg-background border-r border-border/60 shrink-0 transition-transform duration-200 md:translate-x-0 flex flex-col`}
       >
-        <div className="p-3">
+        <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3 pb-2 border-b border-border/40">
             <Clock className="h-4 w-4 text-primary" />
             实时天象
@@ -71,7 +71,7 @@ export default function SkyEventsPage() {
                     className="flex items-center justify-between py-2 px-2 text-sm text-muted-foreground rounded-md hover:bg-primary/5 hover:text-primary transition-colors"
                   >
                     <span>{cat.label}</span>
-                    <span className="text-xs text-muted-foreground/50">{cat.description.slice(0, 8)}...</span>
+                    <span className="text-xs text-muted-foreground/50">{cat.description.slice(0, 8)}…</span>
                   </Link>
                 ))}
               </div>

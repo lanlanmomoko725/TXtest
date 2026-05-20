@@ -224,16 +224,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden animate-fade-in"
-          onClick={closeMenu}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Mobile Menu Panel */}
+      {/* Mobile Menu Panel -- no overlay, click-outside handled by useEffect */}
       {mobileMenuOpen && (
         <div
           className="md:hidden fixed top-16 right-0 z-50 w-72 max-w-[85vw] bg-background/95 backdrop-blur-xl border-l border-border shadow-elevated animate-slide-in-right"
