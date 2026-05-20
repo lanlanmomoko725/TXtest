@@ -22,6 +22,7 @@ import {
   Clock,
   Library,
   Info,
+  Search,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 
@@ -33,6 +34,8 @@ const navItems = [
   { to: "/sky-explanation", label: "天象解说图", icon: ImageIcon },
   { to: "/about", label: "关于我们", icon: Info },
 ];
+
+const searchItem = { to: "/search", label: "搜索", icon: Search, accent: undefined as string | undefined };
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -137,6 +140,15 @@ export default function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => navigate("/search")}
+              className="hidden md:flex text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-[0.98]"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+
             {isAuthenticated && (
               <Button
                 size="sm"
@@ -228,7 +240,7 @@ export default function Navbar() {
           style={{ height: "calc(100dvh - 4rem)", maxHeight: "calc(100dvh - 4rem)", overscrollBehavior: "contain" }}
         >
           <div className="flex flex-col p-4 gap-1 overflow-y-auto h-full scrollbar-thin">
-            {navItems.map((item) => {
+            {[...navItems, searchItem].map((item) => {
               const isActive = location.pathname === item.to;
               const Icon = item.icon;
               return (

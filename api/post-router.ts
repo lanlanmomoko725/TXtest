@@ -4,6 +4,7 @@ import {
   findPosts,
   findPostById,
   findFeaturedPosts,
+  searchPosts,
   createPost,
   updatePost,
   deletePost,
@@ -59,6 +60,19 @@ export const postRouter = createRouter({
         await incrementViewCount(input.id);
       }
       return post;
+    }),
+
+  search: publicQuery
+    .input(
+      z.object({
+        keyword: z.string().min(1).max(100),
+        sort: z.enum(["relevance", "time", "hot"]).default("relevance"),
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(async ({ input }) => {
+      return searchPosts(input);
     }),
 
   create: authedQuery

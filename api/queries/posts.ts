@@ -1,4 +1,4 @@
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, count } from "drizzle-orm";
 import * as schema from "@db/schema";
 import type { InsertPost } from "@db/schema";
 import { getDb } from "./connection";
@@ -249,6 +249,83 @@ export async function incrementViewCount(id: number) {
     .update(schema.posts)
     .set({ viewCount: sql`${schema.posts.viewCount} + 1` })
     .where(eq(schema.posts.id, id));
+}
+
+export async function searchPosts(options: {
+  keyword: string;
+  sort?: "relevance" | "time" | "hot";
+  limit?: number;
+  offset?: number;
+}) {
+  const { keyword, sort = "relevance", limit = 20, offset = 0 } = options;
+  const db = getDb();
+  const likePattern = `%${keyword}%`;
+
+  // Search condition: match title OR content OR tags
+  const searchCondition = sql`(
+    ${schema.posts.title} LIKE ${likePattern} OR
+    ${schema.posts.content} LIKE ${likePattern} OR
+    ${schema.posts.tags} LIKE ${likePattern}
+  )`;
+
+  // Build order by based on sort type
+  let orderByClause;
+  if (sort === "relevance") {
+    // Relevance score: title match = 3, content match = 1, tags match = 2
+    const relevanceScore = sql`(
+      CASE WHEN ${schema.posts.title} LIKE ${likePattern} THEN 3 ELSE 0 END +
+      CASE WHEN ${schema.posts.content} LIKE ${likePattern} THEN 1 ELSE 0 END +
+      CASE WHEN ${schema.posts.tags} LIKE ${likePattern} THEN 2 ELSE 0 END
+    )`;
+    orderByClause = [desc(relevanceScore), desc(schema.posts.createdAt)];
+  } else if (sort === "hot") {
+    orderByClause = [desc(schema.posts.viewCount), desc(schema.posts.createdAt)];
+  } else {
+    // time
+    orderByClause = [desc(schema.posts.createdAt)];
+  }
+
+  // Get total count
+  const totalResult = await db
+    .select({ value: count() })
+    .from(schema.posts)
+    .where(searchCondition);
+  const total = totalResult[0]?.value ?? 0;
+
+  // Get posts
+  const posts = await db
+    .select()
+    .from(schema.posts)
+    .where(searchCondition)
+    .orderBy(...orderByClause)
+    .limit(limit)
+    .offset(offset);
+
+  // Get authors
+  const authorIds = [...new Set(posts.map((p) => p.authorId))];
+  const allAuthors = [];
+  for (const id of authorIds) {
+    const user = await db.query.users.findFirst({
+      where: eq(schema.users.id, id),
+    });
+    if (user) allAuthors.push(user);
+  }
+  const authorMap = new Map(allAuthors.map((a) => [a.id, a]));
+
+  return {
+    posts: posts.map((post) => {
+      let images = normalizeImages(post.images);
+      if (!images || images.length === 0) {
+        images = extractImagesFromHtml(post.content);
+      }
+      return {
+        ...post,
+        images: images.length > 0 ? images : null,
+        author: authorMap.get(post.authorId) || null,
+      };
+    }),
+    total,
+  };
 }
 
 export async function reorderSkyGalleryPosts(orderedIds: number[]) {

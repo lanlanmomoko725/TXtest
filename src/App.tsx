@@ -14,6 +14,7 @@ import SkyEvents from "./pages/SkyEvents"
 import SkyGallery from "./pages/SkyGallery"
 import AboutUs from "./pages/AboutUs"
 import TagPosts from "./pages/TagPosts"
+import SearchPage from "./pages/Search"
 import AdminUsers from "./pages/admin/Users"
 import AdminAuditLogs from "./pages/admin/AuditLogs"
 import Navbar from "./components/Navbar"
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/sky-explanation" element={<SkyExplanation />} />
         <Route path="/about" element={<AboutUs />} />
         <Route path="/tag/:tag" element={<TagPosts />} />
+        <Route path="/search" element={<SearchPage />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/audit" element={<AdminAuditLogs />} />
       </Route>
