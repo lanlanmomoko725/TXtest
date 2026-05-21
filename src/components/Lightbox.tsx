@@ -19,26 +19,49 @@ export default function Lightbox({
   const [scale, setScale] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+  const [isExiting, setIsExiting] = useState(false);
+  const clickBlocked = useRef(false);
 
-  const handlePrev = useCallback(() => {
-    if (currentIndex > 0) {
-      resetView();
-      onNavigate(currentIndex - 1);
-    }
-  }, [currentIndex, onNavigate]);
+  // Internal close with exit animation
+  const handleClose = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => {
+      setIsExiting(false);
+      onClose();
+    }, 250);
+  }, [onClose]);
 
-  const handleNext = useCallback(() => {
-    if (currentIndex < images.length - 1) {
+  // Reset exiting state when opened
+  useEffect(() => {
+    if (isOpen) {
+      setIsExiting(false);
+      setSlideDir(null);
       resetView();
-      onNavigate(currentIndex + 1);
     }
-  }, [currentIndex, images.length, onNavigate]);
+  }, [isOpen]);
 
   const resetView = useCallback(() => {
     setScale(1);
     setPanX(0);
     setPanY(0);
   }, []);
+
+  const handlePrev = useCallback(() => {
+    if (currentIndex > 0) {
+      setSlideDir("left");
+      resetView();
+      onNavigate(currentIndex - 1);
+    }
+  }, [currentIndex, onNavigate, resetView]);
+
+  const handleNext = useCallback(() => {
+    if (currentIndex < images.length - 1) {
+      setSlideDir("right");
+      resetView();
+      onNavigate(currentIndex + 1);
+    }
+  }, [currentIndex, images.length, onNavigate, resetView]);
 
   const handleZoomIn = useCallback(() => {
     setScale((s) => Math.min(s + 0.5, 4));
@@ -55,19 +78,12 @@ export default function Lightbox({
     });
   }, []);
 
-  // Reset view when opening
-  useEffect(() => {
-    if (isOpen) {
-      resetView();
-    }
-  }, [isOpen, resetView]);
-
   // Keyboard support
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isExiting) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose();
       if (e.key === "ArrowLeft") handlePrev();
       if (e.key === "ArrowRight") handleNext();
       if (e.key === "+" || e.key === "=") handleZoomIn();
@@ -82,11 +98,11 @@ export default function Lightbox({
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [isOpen, onClose, handlePrev, handleNext, handleZoomIn, handleZoomOut, resetView]);
+  }, [isOpen, isExiting, handleClose, handlePrev, handleNext, handleZoomIn, handleZoomOut, resetView]);
 
   // Wheel zoom with Ctrl/Cmd
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isExiting) return;
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -106,7 +122,7 @@ export default function Lightbox({
     };
     document.addEventListener("wheel", handleWheel, { passive: false });
     return () => document.removeEventListener("wheel", handleWheel);
-  }, [isOpen]);
+  }, [isOpen, isExiting]);
 
   // =====================
   // Touch handling (entire lightbox area)
@@ -119,6 +135,7 @@ export default function Lightbox({
     lastY: number;
     startTime: number;
     isPanning: boolean;
+    touchedImage: boolean;
   }>({
     active: false,
     startX: 0,
@@ -127,10 +144,14 @@ export default function Lightbox({
     lastY: 0,
     startTime: 0,
     isPanning: false,
+    touchedImage: false,
   });
 
   const onTouchStartRoot = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0];
+    const target = e.target as HTMLElement;
+    // Detect if touch started on the image itself
+    const isImage = target.tagName === "IMG" || target.closest("img") !== null;
     touchState.current = {
       active: true,
       startX: t.clientX,
@@ -139,6 +160,7 @@ export default function Lightbox({
       lastY: t.clientY,
       startTime: Date.now(),
       isPanning: false,
+      touchedImage: isImage,
     };
   }, []);
 
@@ -149,18 +171,15 @@ export default function Lightbox({
     const dx = t.clientX - state.lastX;
     const dy = t.clientY - state.lastY;
 
-    // Prevent page scroll while swiping/panning in lightbox
     if (Math.abs(t.clientX - state.startX) > 5 || Math.abs(t.clientY - state.startY) > 5) {
       state.isPanning = true;
     }
 
     if (state.isPanning) {
-      // Prevent default browser behavior (page scroll, pull-to-refresh, etc.)
       e.preventDefault();
     }
 
     if (scale > 1) {
-      // Pan mode: 1:1 mapping for responsive feel
       setPanX((prev) => prev + dx);
       setPanY((prev) => prev + dy);
     }
@@ -169,7 +188,7 @@ export default function Lightbox({
     state.lastY = t.clientY;
   }, [scale]);
 
-  const onTouchEndRoot = useCallback(() => {
+  const onTouchEndRoot = useCallback((e: React.TouchEvent) => {
     const state = touchState.current;
     if (!state.active) return;
     state.active = false;
@@ -179,9 +198,17 @@ export default function Lightbox({
     const duration = Date.now() - state.startTime;
     const distance = Math.hypot(totalDx, totalDy);
 
-    // Tap to close (small movement, short duration, not on controls)
+    // Tap to close — only on background, not on image
     if (distance < 12 && duration < 300 && !state.isPanning) {
-      onClose();
+      if (!state.touchedImage) {
+        e.preventDefault();
+        // Block the subsequent ghost click
+        clickBlocked.current = true;
+        setTimeout(() => {
+          clickBlocked.current = false;
+        }, 500);
+        handleClose();
+      }
       return;
     }
 
@@ -193,7 +220,7 @@ export default function Lightbox({
         handleNext();
       }
     }
-  }, [scale, currentIndex, images.length, handlePrev, handleNext, onClose]);
+  }, [scale, currentIndex, images.length, handlePrev, handleNext, handleClose]);
 
   // =====================
   // Mouse drag handling (image area only)
@@ -248,26 +275,37 @@ export default function Lightbox({
     return () => document.removeEventListener("mouseup", handleGlobalMouseUp);
   }, [isMouseDragging, onMouseUpImg]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isExiting) return null;
 
   const canZoomIn = scale < 4;
   const canZoomOut = scale > 0.5;
   const isZoomed = scale !== 1 || panX !== 0 || panY !== 0;
 
+  // Determine image entrance animation
+  const imageAnimationClass = isExiting
+    ? ""
+    : slideDir === "left"
+    ? "animate-lightbox-slide-left"
+    : slideDir === "right"
+    ? "animate-lightbox-slide-right"
+    : "animate-scale-in";
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md animate-fade-in touch-none"
+      className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md touch-none ${
+        isExiting ? "animate-fade-out pointer-events-none" : "animate-fade-in"
+      }`}
       onTouchStart={onTouchStartRoot}
       onTouchMove={onTouchMoveRoot}
       onTouchEnd={onTouchEndRoot}
       onClick={(e) => {
-        // Desktop: click background to close
-        if (e.target === e.currentTarget) onClose();
+        if (clickBlocked.current) return;
+        if (e.target === e.currentTarget) handleClose();
       }}
     >
       {/* Close button */}
       <button
-        onClick={onClose}
+        onClick={handleClose}
         onTouchStart={(e) => e.stopPropagation()}
         className="absolute top-4 right-4 z-20 p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
         aria-label="关闭"
@@ -305,7 +343,7 @@ export default function Lightbox({
         </button>
       )}
 
-      {/* Image container */}
+      {/* Image container with transition animation */}
       <div
         className="relative w-full h-full flex items-center justify-center select-none z-10"
         onMouseDown={onMouseDownImg}
@@ -314,16 +352,18 @@ export default function Lightbox({
         onMouseLeave={onMouseUpImg}
         style={{ cursor: isMouseDragging ? "grabbing" : scale > 1 ? "grab" : "default" }}
       >
-        <img
-          src={images[currentIndex]}
-          alt={`图片 ${currentIndex + 1}`}
-          className="max-w-[90vw] max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-elevated pointer-events-none"
-          style={{
-            transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
-            transition: isMouseDragging ? "none" : "transform 0.15s ease-out",
-          }}
-          draggable={false}
-        />
+        <div key={currentIndex} className={`${imageAnimationClass} flex items-center justify-center`}>
+          <img
+            src={images[currentIndex]}
+            alt={`图片 ${currentIndex + 1}`}
+            className="max-w-[90vw] max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-elevated pointer-events-none"
+            style={{
+              transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
+              transition: isMouseDragging ? "none" : "transform 0.15s ease-out",
+            }}
+            draggable={false}
+          />
+        </div>
       </div>
 
       {/* Zoom Controls */}
@@ -373,6 +413,8 @@ export default function Lightbox({
               onClick={(e) => {
                 e.stopPropagation();
                 resetView();
+                if (idx > currentIndex) setSlideDir("right");
+                else if (idx < currentIndex) setSlideDir("left");
                 onNavigate(idx);
               }}
               className={`h-2 rounded-full transition-all duration-300 ${

@@ -112,6 +112,22 @@ module.exports = {
           "60%": { transform: "translateX(-2px)" },
           "80%": { transform: "translateX(2px)" },
         },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.92)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        "fade-out": {
+          from: { opacity: "1" },
+          to: { opacity: "0" },
+        },
+        "lightbox-slide-left": {
+          from: { opacity: "0", transform: "translateX(-48px) scale(0.94)" },
+          to: { opacity: "1", transform: "translateX(0) scale(1)" },
+        },
+        "lightbox-slide-right": {
+          from: { opacity: "0", transform: "translateX(48px) scale(0.94)" },
+          to: { opacity: "1", transform: "translateX(0) scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -124,6 +140,10 @@ module.exports = {
         "slide-in-bottom": "slide-in-bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "ken-burns": "ken-burns 20s ease-out forwards",
         "shake": "shake 0.4s ease-in-out",
+        "scale-in": "scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "fade-out": "fade-out 0.25s ease-out forwards",
+        "lightbox-slide-left": "lightbox-slide-left 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "lightbox-slide-right": "lightbox-slide-right 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards",
       },
     },
   },
