@@ -46,7 +46,8 @@ export default function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const navRef = useRef<HTMLElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const desktopInputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
 
   const closeMenu = useCallback(() => {
     setMobileMenuOpen(false);
@@ -76,12 +77,18 @@ export default function Navbar() {
     [handleSearch, closeSearch]
   );
 
-  // Auto-focus search input when opened
+  // Auto-focus the visible search input when opened
   useEffect(() => {
-    if (searchOpen && searchInputRef.current) {
-      // Small delay to ensure input is rendered and visible
+    if (searchOpen) {
       requestAnimationFrame(() => {
-        searchInputRef.current?.focus();
+        const desktopInput = desktopInputRef.current;
+        const mobileInput = mobileInputRef.current;
+        // offsetParent is null when element is hidden (display:none)
+        if (desktopInput && desktopInput.offsetParent !== null) {
+          desktopInput.focus();
+        } else if (mobileInput && mobileInput.offsetParent !== null) {
+          mobileInput.focus();
+        }
       });
     }
   }, [searchOpen]);
@@ -188,27 +195,63 @@ export default function Navbar() {
       </Button>
     );
 
-  const searchInput = (
-    <div className="relative flex-1 md:flex-none md:w-64 lg:w-80 animate-fade-in">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-      <input
-        ref={searchInputRef}
-        type="text"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        onKeyDown={handleSearchKeyDown}
-        placeholder="搜索文章..."
-        className="w-full rounded-full border border-border bg-background pl-9 pr-8 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
-      />
-      {searchQuery && (
-        <button
-          onClick={() => setSearchQuery("")}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-accent transition-colors"
-          aria-label="清除"
-        >
-          <X className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-      )}
+  // Desktop search input: expands left from the search button
+  const desktopSearchInput = (
+    <div
+      className={`hidden md:block overflow-hidden transition-all duration-300 ease-out-quart ${
+        searchOpen ? "w-48 lg:w-56" : "w-0"
+      }`}
+    >
+      <div className="relative w-48 lg:w-56">
+        <input
+          ref={desktopInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          placeholder="搜索文章..."
+          className="w-full rounded-full border border-border bg-background px-4 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-accent transition-colors"
+            aria-label="清除"
+          >
+            <X className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  // Mobile search input: expands left from the search button
+  const mobileSearchInput = (
+    <div
+      className={`md:hidden overflow-hidden transition-all duration-300 ease-out-quart ${
+        searchOpen ? "w-32 sm:w-40" : "w-0"
+      }`}
+    >
+      <div className="relative w-32 sm:w-40">
+        <input
+          ref={mobileInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          placeholder="搜索..."
+          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-accent transition-colors"
+            aria-label="清除"
+          >
+            <X className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -233,70 +276,45 @@ export default function Navbar() {
             <span>天象志</span>
           </Link>
 
-          {/* Center: Nav links or Search */}
-          <div className="flex flex-1 items-center justify-center">
-            {searchOpen ? (
-              <div className="flex items-center gap-2">
-                {searchInput}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleSearch}
-                  className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
+          {/* Desktop Navigation — always visible */}
+          <div className="flex items-center gap-1">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.to;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring ${
+                    isActive
+                      ? "text-primary bg-primary/8"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  }`}
                 >
-                  <Search className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={closeSearch}
-                  className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200"
-                  aria-label="取消搜索"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                {navItems.map((item) => {
-                  const isActive = location.pathname === item.to;
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      aria-current={isActive ? "page" : undefined}
-                      className={`relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring ${
-                        isActive
-                          ? "text-primary bg-primary/8"
-                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                      }`}
-                    >
-                      <Icon className={`h-4 w-4 ${item.accent && !isActive ? item.accent : ""}`} />
-                      <span>{item.label}</span>
-                      {isActive && (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-primary" />
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
+                  <Icon className={`h-4 w-4 ${item.accent && !isActive ? item.accent : ""}`} />
+                  <span>{item.label}</span>
+                  {isActive && (
+                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-4 rounded-full bg-primary" />
+                  )}
+                </Link>
+              );
+            })}
           </div>
 
-          {/* Right side */}
+          {/* Right side: search expands from button to the left */}
           <div className="flex items-center gap-2 shrink-0">
-            {!searchOpen && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSearchOpen(true)}
-                className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-[0.98]"
-                aria-label="搜索"
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-            )}
+            {desktopSearchInput}
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={searchOpen ? closeSearch : () => setSearchOpen(true)}
+              className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-[0.98]"
+              aria-label={searchOpen ? "取消搜索" : "搜索"}
+            >
+              {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+            </Button>
 
             {isAuthenticated && (
               <Button
@@ -325,50 +343,42 @@ export default function Navbar() {
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
-          {/* Center - Logo or Search */}
-          <div className="flex-1 flex justify-center min-w-0">
-            {searchOpen ? (
-              <div className="flex items-center gap-1.5 w-full max-w-xs">
-                {searchInput}
-                <button
-                  onClick={closeSearch}
-                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
-                  aria-label="取消搜索"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            ) : (
-              <Link
-                to="/"
-                className="flex items-center gap-2 text-lg font-bold text-foreground transition-colors hover:opacity-80 focus-visible:rounded-lg truncate"
-              >
-                <Cloud className="h-5 w-5 text-primary shrink-0" />
-                <span className="truncate">天象志</span>
-              </Link>
-            )}
+          {/* Center - Logo (fades out when search is open) */}
+          <div
+            className={`flex-1 flex justify-center min-w-0 transition-opacity duration-300 ${
+              searchOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+            }`}
+          >
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-lg font-bold text-foreground transition-colors hover:opacity-80 focus-visible:rounded-lg truncate"
+            >
+              <Cloud className="h-5 w-5 text-primary shrink-0" />
+              <span className="truncate">天象志</span>
+            </Link>
           </div>
 
-          {/* Right - Search + Avatar */}
+          {/* Right - search expands from button to the left, then avatar */}
           <div className="flex items-center gap-1 shrink-0">
-            {!searchOpen && (
-              <button
-                onClick={() => setSearchOpen(true)}
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="搜索"
-              >
-                <Search className="h-5 w-5" />
-              </button>
-            )}
+            {mobileSearchInput}
+
+            <button
+              onClick={searchOpen ? closeSearch : () => setSearchOpen(true)}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={searchOpen ? "取消搜索" : "搜索"}
+            >
+              {searchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+            </button>
+
             {renderAvatar()}
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu Panel */}
+      {/* Mobile Menu Panel — slides in from top-left */}
       {mobileMenuOpen && (
         <div
-          className="md:hidden fixed top-16 right-0 z-50 w-72 max-w-[85vw] bg-background/95 backdrop-blur-xl border-l border-border shadow-elevated animate-slide-in-right"
+          className="md:hidden fixed top-16 left-0 z-50 w-72 max-w-[85vw] bg-background/95 backdrop-blur-xl border-r border-border shadow-elevated animate-slide-in-left"
           style={{ height: "calc(100dvh - 4rem)", maxHeight: "calc(100dvh - 4rem)", overscrollBehavior: "contain" }}
         >
           <div className="flex flex-col p-4 gap-1 overflow-y-auto h-full scrollbar-thin">
