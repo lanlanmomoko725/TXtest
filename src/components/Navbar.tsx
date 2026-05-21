@@ -306,15 +306,29 @@ export default function Navbar() {
           <div className="flex items-center gap-2 shrink-0">
             {desktopSearchInput}
 
+            {/* Search button — always shows Search icon */}
             <Button
               size="sm"
               variant="ghost"
-              onClick={searchOpen ? closeSearch : () => setSearchOpen(true)}
+              onClick={searchOpen ? handleSearch : () => setSearchOpen(true)}
               className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-[0.98]"
-              aria-label={searchOpen ? "取消搜索" : "搜索"}
+              aria-label="搜索"
             >
-              {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+              <Search className="h-4 w-4" />
             </Button>
+
+            {/* Close search button — only visible when search is open */}
+            {searchOpen && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={closeSearch}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-[0.98] animate-fade-in"
+                aria-label="取消搜索"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
 
             {isAuthenticated && (
               <Button
@@ -362,13 +376,25 @@ export default function Navbar() {
           <div className="flex items-center gap-1 shrink-0">
             {mobileSearchInput}
 
+            {/* Search button — always shows Search icon */}
             <button
-              onClick={searchOpen ? closeSearch : () => setSearchOpen(true)}
+              onClick={searchOpen ? handleSearch : () => setSearchOpen(true)}
               className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={searchOpen ? "取消搜索" : "搜索"}
+              aria-label="搜索"
             >
-              {searchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+              <Search className="h-5 w-5" />
             </button>
+
+            {/* Close search button — only visible when search is open */}
+            {searchOpen && (
+              <button
+                onClick={closeSearch}
+                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-ring animate-fade-in"
+                aria-label="取消搜索"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
 
             {renderAvatar()}
           </div>
