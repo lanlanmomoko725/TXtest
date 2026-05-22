@@ -7,6 +7,9 @@ WORKDIR /app
 
 # 先复制依赖文件，利用 Docker 缓存层
 COPY package.json package-lock.json* ./
+
+# 设置 npm 镜像源为官方源（避免 npmmirror 502 错误）
+RUN npm config set registry https://repo.huaweicloud.com/repository/npm/
 RUN npm ci
 
 # 复制源码并构建
@@ -20,7 +23,7 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-# 更换为清华镜像源（国内服务器加速）
+# 更换为阿里云镜像源（国内服务器加速）
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
 
