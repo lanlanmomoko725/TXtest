@@ -8,9 +8,9 @@ WORKDIR /app
 # 先复制依赖文件，利用 Docker 缓存层
 COPY package.json package-lock.json* ./
 
-# 设置 npm 镜像源为官方源（避免 npmmirror 502 错误）
+# 设置 npm 镜像源为华为源（避免 npmmirror 502 错误）
 RUN npm config set registry https://repo.huaweicloud.com/repository/npm/
-RUN npm ci
+RUN npm ci && npm install
 
 # 复制源码并构建
 COPY . .
