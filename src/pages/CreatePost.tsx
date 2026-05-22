@@ -23,6 +23,28 @@ import { LOGIN_PATH } from "@/const";
 import RichEditor from "@/components/RichEditor";
 import { Cloud, PenLine, ImagePlus, Loader2, MapPin, Send, X, Upload, FileText, StickyNote, Check } from "lucide-react";
 
+/** Convert rich HTML content to plain text for the simple textarea */
+function stripHtml(html: string): string {
+  if (!html || html === "<p><br></p>" || html === "<br>") return "";
+  return html
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
+/** Convert plain text to simple HTML paragraphs for the rich editor */
+function plainTextToHtml(text: string): string {
+  if (!text.trim()) return "<p><br></p>";
+  const escape = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text
+    .split("\n")
+    .map((line) => `<p>${escape(line)}</p>`)
+    .join("");
+}
+
 export default function CreatePost() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth({
@@ -204,7 +226,12 @@ export default function CreatePost() {
             />
             <button
               type="button"
-              onClick={() => setIsArticle(false)}
+              onClick={() => {
+                if (isArticle) {
+                  setContent(stripHtml(content));
+                }
+                setIsArticle(false);
+              }}
               className={`relative z-10 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 !isArticle ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -214,7 +241,12 @@ export default function CreatePost() {
             </button>
             <button
               type="button"
-              onClick={() => setIsArticle(true)}
+              onClick={() => {
+                if (!isArticle) {
+                  setContent(plainTextToHtml(content));
+                }
+                setIsArticle(true);
+              }}
               className={`relative z-10 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isArticle ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}

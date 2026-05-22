@@ -211,9 +211,12 @@ export default function RichEditor({
     }
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) insertImage(file);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    for (const file of Array.from(files)) {
+      await insertImage(file);
+    }
     e.target.value = "";
   };
 
@@ -368,31 +371,31 @@ export default function RichEditor({
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp"
+          multiple
           className="hidden"
           onChange={handleFileChange}
         />
       </div>
 
       {/* Editor */}
-      <div
-        ref={editorRef}
-        contentEditable
-        onInput={handleInput}
-        onKeyDown={handleKeyDown}
-        onBlur={handleInput}
-        onClick={handleEditorClick}
-        className="px-5 py-4 outline-none text-[15px] leading-relaxed text-slate-800 rich-editor"
-        style={{ minHeight }}
-        suppressContentEditableWarning
-      />
-      {isEmpty && (
+      <div className="relative">
         <div
-          className="absolute pointer-events-none text-slate-400 px-5 text-[15px] leading-relaxed"
-          style={{ marginTop: "-" + minHeight }}
-        >
-          {placeholder}
-        </div>
-      )}
+          ref={editorRef}
+          contentEditable
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          onBlur={handleInput}
+          onClick={handleEditorClick}
+          className="px-5 py-4 outline-none text-[15px] leading-relaxed text-slate-800 rich-editor"
+          style={{ minHeight }}
+          suppressContentEditableWarning
+        />
+        {isEmpty && (
+          <div className="absolute top-0 left-0 pointer-events-none text-slate-400 px-5 py-4 text-[15px] leading-relaxed">
+            {placeholder}
+          </div>
+        )}
+      </div>
 
       {/* Image alignment toolbar (floating) */}
       {imgToolbar.visible && (
