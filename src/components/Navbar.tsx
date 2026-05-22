@@ -106,15 +106,15 @@ export default function Navbar() {
   // Close on click outside (mobile menu or search)
   useEffect(() => {
     if (!mobileMenuOpen && !searchOpen) return;
-    const handleClick = (e: MouseEvent) => {
+    const handlePointerDown = (e: PointerEvent) => {
       const target = e.target as Node;
       if (navRef.current && !navRef.current.contains(target)) {
-        closeMenu();
-        closeSearch();
+        if (mobileMenuOpen) closeMenu();
+        if (searchOpen) closeSearch();
       }
     };
-    document.addEventListener("click", handleClick, true);
-    return () => document.removeEventListener("click", handleClick, true);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [mobileMenuOpen, searchOpen, closeMenu, closeSearch]);
 
   // Close on page scroll (mobile menu only)
@@ -154,9 +154,6 @@ export default function Navbar() {
                 {(user.name || "用户").slice(0, 2)}
               </AvatarFallback>
             </Avatar>
-            <span className="hidden md:inline text-sm font-medium text-foreground">
-              {user.name || "用户"}
-            </span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
@@ -210,7 +207,7 @@ export default function Navbar() {
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleSearchKeyDown}
           placeholder="搜索文章..."
-          className="w-full rounded-full border border-border bg-background px-4 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+          className="w-full rounded-full border border-border bg-background px-4 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/50"
         />
         {searchQuery && (
           <button
@@ -240,7 +237,7 @@ export default function Navbar() {
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleSearchKeyDown}
           placeholder="搜索..."
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/50"
         />
         {searchQuery && (
           <button
@@ -276,8 +273,8 @@ export default function Navbar() {
             <span>天象志</span>
           </Link>
 
-          {/* Desktop Navigation — always visible */}
-          <div className="flex items-center gap-1">
+          {/* Desktop Navigation — always visible, never squeezed */}
+          <div className="flex items-center gap-1 flex-shrink-0">
             {navItems.map((item) => {
               const isActive = location.pathname === item.to;
               const Icon = item.icon;
@@ -316,19 +313,6 @@ export default function Navbar() {
             >
               <Search className="h-4 w-4" />
             </Button>
-
-            {/* Close search button — only visible when search is open */}
-            {searchOpen && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={closeSearch}
-                className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-[0.98] animate-fade-in"
-                aria-label="取消搜索"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
 
             {isAuthenticated && (
               <Button
@@ -384,17 +368,6 @@ export default function Navbar() {
             >
               <Search className="h-5 w-5" />
             </button>
-
-            {/* Close search button — only visible when search is open */}
-            {searchOpen && (
-              <button
-                onClick={closeSearch}
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-ring animate-fade-in"
-                aria-label="取消搜索"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            )}
 
             {renderAvatar()}
           </div>
