@@ -35,7 +35,7 @@ const navItems = [
   { to: "/about", label: "关于我们", icon: Info },
 ];
 
-const searchItem = { to: "/search", label: "搜索", icon: Search, accent: undefined as string | undefined };
+
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -192,13 +192,9 @@ export default function Navbar() {
       </Button>
     );
 
-  // Desktop search input: expands left from the search button
+  // Desktop fixed search input
   const desktopSearchInput = (
-    <div
-      className={`hidden md:block overflow-hidden transition-all duration-300 ease-out-quart ${
-        searchOpen ? "w-48 lg:w-56" : "w-0"
-      }`}
-    >
+    <div className="hidden md:block w-48 lg:w-56">
       <div className="relative w-48 lg:w-56">
         <input
           ref={desktopInputRef}
@@ -299,15 +295,15 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Right side: search expands from button to the left */}
+          {/* Right side: fixed search + actions */}
           <div className="flex items-center gap-2 shrink-0">
             {desktopSearchInput}
 
-            {/* Search button — always shows Search icon */}
+            {/* Search button — desktop always searches */}
             <Button
               size="sm"
               variant="ghost"
-              onClick={searchOpen ? handleSearch : () => setSearchOpen(true)}
+              onClick={handleSearch}
               className="text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:scale-[0.98]"
               aria-label="搜索"
             >
@@ -381,7 +377,7 @@ export default function Navbar() {
           style={{ height: "calc(100dvh - 4rem)", maxHeight: "calc(100dvh - 4rem)", overscrollBehavior: "contain" }}
         >
           <div className="flex flex-col p-4 gap-1 overflow-y-auto h-full scrollbar-thin">
-            {[...navItems, searchItem].map((item) => {
+            {navItems.map((item) => {
               const isActive = location.pathname === item.to;
               const Icon = item.icon;
               return (

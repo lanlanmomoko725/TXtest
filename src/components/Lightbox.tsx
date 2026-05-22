@@ -227,9 +227,11 @@ export default function Lightbox({
   // =====================
   const [isMouseDragging, setIsMouseDragging] = useState(false);
   const mouseState = useRef({ startX: 0, startY: 0, lastX: 0, lastY: 0 });
+  const mouseDragged = useRef(false);
 
   const onMouseDownImg = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    mouseDragged.current = false;
     mouseState.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -243,6 +245,12 @@ export default function Lightbox({
     if (!isMouseDragging) return;
     const dx = e.clientX - mouseState.current.lastX;
     const dy = e.clientY - mouseState.current.lastY;
+
+    const totalDx = e.clientX - mouseState.current.startX;
+    const totalDy = e.clientY - mouseState.current.startY;
+    if (Math.abs(totalDx) > 3 || Math.abs(totalDy) > 3) {
+      mouseDragged.current = true;
+    }
 
     if (scale > 1) {
       setPanX((prev) => prev + dx);
@@ -298,9 +306,13 @@ export default function Lightbox({
       onTouchStart={onTouchStartRoot}
       onTouchMove={onTouchMoveRoot}
       onTouchEnd={onTouchEndRoot}
+      onMouseDown={() => {
+        mouseDragged.current = false;
+      }}
       onClick={(e) => {
         if (clickBlocked.current) return;
-        if (e.target === e.currentTarget) handleClose();
+        if (mouseDragged.current) return;
+        handleClose();
       }}
     >
       {/* Close button */}
