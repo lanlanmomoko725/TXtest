@@ -317,7 +317,10 @@ export default function Lightbox({
     >
       {/* Close button */}
       <button
-        onClick={handleClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleClose();
+        }}
         onTouchStart={(e) => e.stopPropagation()}
         className="absolute top-4 right-4 z-20 p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
         aria-label="关闭"
@@ -384,7 +387,10 @@ export default function Lightbox({
         onTouchStart={(e) => e.stopPropagation()}
       >
         <button
-          onClick={handleZoomOut}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleZoomOut();
+          }}
           disabled={!canZoomOut}
           className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50 disabled:opacity-30 disabled:hover:scale-100 disabled:cursor-not-allowed"
           aria-label="缩小"
@@ -393,7 +399,10 @@ export default function Lightbox({
           <ZoomOut className="h-5 w-5" />
         </button>
         <button
-          onClick={resetView}
+          onClick={(e) => {
+            e.stopPropagation();
+            resetView();
+          }}
           disabled={!isZoomed}
           className="px-3 py-2 rounded-full bg-white/10 text-white text-xs font-medium hover:bg-white/20 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-white/50 disabled:opacity-30 disabled:hover:scale-100 disabled:cursor-not-allowed"
           aria-label="适应界面"
@@ -403,7 +412,10 @@ export default function Lightbox({
           {Math.round(scale * 100)}%
         </button>
         <button
-          onClick={handleZoomIn}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleZoomIn();
+          }}
           disabled={!canZoomIn}
           className="p-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50 disabled:opacity-30 disabled:hover:scale-100 disabled:cursor-not-allowed"
           aria-label="放大"
