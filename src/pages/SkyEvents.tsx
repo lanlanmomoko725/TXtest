@@ -12,14 +12,16 @@ import {
   PanelLeftClose,
   PanelLeft,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function SkyEventsPage() {
   const isMobile = useIsMobile();
+  const autoOpenRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window !== "undefined" && sessionStorage.getItem("sidebar_auto_open") === "1") {
       sessionStorage.removeItem("sidebar_auto_open");
+      autoOpenRef.current = true;
       return true;
     }
     return typeof window !== "undefined" ? window.innerWidth >= 768 : true;
@@ -31,6 +33,16 @@ export default function SkyEventsPage() {
     limit: 24,
     offset: 0,
   });
+
+  useEffect(() => {
+    const mobile = typeof window !== "undefined" ? window.innerWidth < 768 : isMobile;
+    if (!mobile) {
+      setSidebarOpen(true);
+    } else if (!autoOpenRef.current) {
+      setSidebarOpen(false);
+    }
+    autoOpenRef.current = false;
+  }, [isMobile]);
 
   return (
     <div className="min-h-screen flex">

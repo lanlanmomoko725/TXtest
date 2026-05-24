@@ -10,6 +10,7 @@ const LIST_PAGE_PREFIXES = [
   "/sky-explanation",
   "/featured",
   "/tag/",
+  "/search",
 ];
 
 function isListPage(path: string): boolean {
@@ -29,8 +30,10 @@ function isTopPage(path: string): boolean {
 }
 
 export default function ScrollManager() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const routeKey = `${pathname}${search}`;
   const prevPathRef = useRef(pathname);
+  const prevRouteKeyRef = useRef(routeKey);
   const scrollYRef = useRef(0);
 
   // Track current scroll position continuously
@@ -45,7 +48,9 @@ export default function ScrollManager() {
   // Handle route change scroll behavior synchronously before paint
   useLayoutEffect(() => {
     const prevPath = prevPathRef.current;
+    const prevRouteKey = prevRouteKeyRef.current;
     prevPathRef.current = pathname;
+    prevRouteKeyRef.current = routeKey;
 
     const wasListPage = isListPage(prevPath);
     const isListPageNow = isListPage(pathname);
@@ -61,7 +66,7 @@ export default function ScrollManager() {
 
     if (wasListPage && isTopPageNow) {
       // List page -> detail/create/profile/auth: save list position
-      sessionStorage.setItem(`scroll:${prevPath}`, String(scrollYRef.current));
+      sessionStorage.setItem(`scroll:${prevRouteKey}`, String(scrollYRef.current));
       targetY = 0;
       shouldLock = true;
     } else if (isTopPageNow) {
@@ -70,10 +75,10 @@ export default function ScrollManager() {
       shouldLock = true;
     } else if (isListPageNow) {
       // Any page -> list page: restore saved position if available
-      const saved = sessionStorage.getItem(`scroll:${pathname}`);
+      const saved = sessionStorage.getItem(`scroll:${routeKey}`);
       if (saved) {
         targetY = parseInt(saved, 10);
-        sessionStorage.removeItem(`scroll:${pathname}`);
+        sessionStorage.removeItem(`scroll:${routeKey}`);
       } else {
         targetY = 0;
       }
@@ -99,7 +104,7 @@ export default function ScrollManager() {
       timeoutId = setTimeout(() => {
         cancelAnimationFrame(frameId);
         html.style.scrollBehavior = originalBehavior;
-      }, 200);
+      }, 100);
     } else {
       // For list pages, also give a brief window to settle before restoring smooth
       timeoutId = setTimeout(() => {
@@ -112,7 +117,7 @@ export default function ScrollManager() {
       clearTimeout(timeoutId);
       html.style.scrollBehavior = originalBehavior;
     };
-  }, [pathname]);
+  }, [pathname, routeKey]);
 
   return null;
 }

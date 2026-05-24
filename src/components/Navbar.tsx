@@ -25,6 +25,7 @@ import {
   Search,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 const navItems = [
   { to: "/", label: "首页", icon: Home },
@@ -127,14 +128,8 @@ export default function Navbar() {
 
   // Lock body scroll when mobile menu open
   useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
+    if (!mobileMenuOpen) return;
+    return lockBodyScroll();
   }, [mobileMenuOpen]);
 
   // Close search/menu on route change

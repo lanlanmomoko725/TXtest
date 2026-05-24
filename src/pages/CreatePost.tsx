@@ -22,6 +22,7 @@ import {
 import { LOGIN_PATH } from "@/const";
 import RichEditor from "@/components/RichEditor";
 import { Cloud, PenLine, ImagePlus, Loader2, MapPin, Send, X, Upload, FileText, StickyNote, Check } from "lucide-react";
+import { uploadImage } from "@/lib/upload";
 
 /** Convert rich HTML content to plain text for the simple textarea */
 function stripHtml(html: string): string {
@@ -171,13 +172,9 @@ export default function CreatePost() {
     const newUrls: string[] = [];
 
     for (const file of Array.from(files)) {
-      const formData = new FormData();
-      formData.append("file", file);
-
       try {
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
+        const res = new Response(JSON.stringify({ success: true, url: await uploadImage(file) }), {
+          headers: { "content-type": "application/json" },
         });
         const contentType = res.headers.get("content-type") ?? "";
         if (!contentType.includes("application/json")) {

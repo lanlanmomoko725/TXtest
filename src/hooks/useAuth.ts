@@ -8,12 +8,8 @@ type UseAuthOptions = {
   redirectPath?: string;
 };
 
-function setSessionCookie(token: string) {
-  // Cookie is httpOnly on server, but we need to store a flag for client
-  // The actual auth cookie is set by the server during login/register
-  // For email auth, the server returns token and we set it via a fetch call
-  // Token is handled by the tRPC mutation response - we need to set cookie manually
-  document.cookie = `kimi_sid=${token}; path=/; max-age=${365 * 24 * 60 * 60}; SameSite=Lax`;
+function setSessionCookie(_token: string) {
+  // Auth cookies are issued by the server as httpOnly cookies.
 }
 
 export function useAuth(options?: UseAuthOptions) {

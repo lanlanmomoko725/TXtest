@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 interface LightboxProps {
   images: string[];
@@ -22,15 +23,26 @@ export default function Lightbox({
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
   const [isExiting, setIsExiting] = useState(false);
   const clickBlocked = useRef(false);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clickBlockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Internal close with exit animation
   const handleClose = useCallback(() => {
+    if (closeTimeoutRef.current) return;
     setIsExiting(true);
-    setTimeout(() => {
+    closeTimeoutRef.current = setTimeout(() => {
+      closeTimeoutRef.current = null;
       setIsExiting(false);
       onClose();
     }, 250);
   }, [onClose]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+      if (clickBlockTimeoutRef.current) clearTimeout(clickBlockTimeoutRef.current);
+    };
+  }, []);
 
   // Reset exiting state when opened
   useEffect(() => {
@@ -92,11 +104,11 @@ export default function Lightbox({
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    document.body.style.overflow = "hidden";
+    const releaseScrollLock = lockBodyScroll();
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
+      releaseScrollLock();
     };
   }, [isOpen, isExiting, handleClose, handlePrev, handleNext, handleZoomIn, handleZoomOut, resetView]);
 
@@ -204,8 +216,10 @@ export default function Lightbox({
         e.preventDefault();
         // Block the subsequent ghost click
         clickBlocked.current = true;
-        setTimeout(() => {
+        if (clickBlockTimeoutRef.current) clearTimeout(clickBlockTimeoutRef.current);
+        clickBlockTimeoutRef.current = setTimeout(() => {
           clickBlocked.current = false;
+          clickBlockTimeoutRef.current = null;
         }, 500);
         handleClose();
       }
@@ -312,6 +326,7 @@ export default function Lightbox({
       onClick={(e) => {
         if (clickBlocked.current) return;
         if (mouseDragged.current) return;
+        if (e.target !== e.currentTarget) return;
         handleClose();
       }}
     >
@@ -360,18 +375,19 @@ export default function Lightbox({
 
       {/* Image container with transition animation */}
       <div
-        className="relative w-full h-full flex items-center justify-center select-none z-10"
+        className="relative flex items-center justify-center select-none z-10"
         onMouseDown={onMouseDownImg}
         onMouseMove={onMouseMoveImg}
         onMouseUp={onMouseUpImg}
         onMouseLeave={onMouseUpImg}
+        onClick={(e) => e.stopPropagation()}
         style={{ cursor: isMouseDragging ? "grabbing" : scale > 1 ? "grab" : "default" }}
       >
         <div key={currentIndex} className={`${imageAnimationClass} flex items-center justify-center`}>
           <img
             src={images[currentIndex]}
             alt={`图片 ${currentIndex + 1}`}
-            className="max-w-[90vw] max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-elevated pointer-events-none"
+            className="max-w-[90vw] max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-elevated"
             style={{
               transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
               transition: isMouseDragging ? "none" : "transform 0.15s ease-out",

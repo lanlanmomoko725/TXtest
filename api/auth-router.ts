@@ -4,6 +4,7 @@ import { getSessionCookieOptions } from "./lib/cookies";
 import { createRouter, authedQuery } from "./middleware";
 import { updateUser } from "./queries/users";
 import { z } from "zod";
+import { toCurrentUser } from "./lib/user-dto";
 
 function validateNameLength(name: string): boolean {
   let length = 0;
@@ -30,7 +31,7 @@ function clearAuthCookies(resHeaders: Headers, reqHeaders: Headers) {
 }
 
 export const authRouter = createRouter({
-  me: authedQuery.query((opts) => opts.ctx.user),
+  me: authedQuery.query((opts) => toCurrentUser(opts.ctx.user)),
   logout: authedQuery.mutation(async ({ ctx }) => {
     clearAuthCookies(ctx.resHeaders, ctx.req.headers);
     return { success: true };
@@ -51,6 +52,6 @@ export const authRouter = createRouter({
         name: input.name,
         avatar: input.avatar,
       });
-      return updated;
+      return toCurrentUser(updated);
     }),
 });

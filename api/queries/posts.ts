@@ -2,6 +2,8 @@ import { eq, desc, and, sql, count } from "drizzle-orm";
 import * as schema from "@db/schema";
 import type { InsertPost } from "@db/schema";
 import { getDb } from "./connection";
+import { findPublicUsersByIds } from "./users";
+import { sanitizeHtml } from "@contracts/html-sanitizer";
 
 // Extract image URLs from HTML content (for article mode images)
 function extractImagesFromHtml(html: string): string[] {
@@ -93,26 +95,18 @@ export async function findPosts(options: {
     .limit(limit)
     .offset(offset);
 
-  // Get authors
-  const authorIds = [...new Set(posts.map((p) => p.authorId))];
-  const allAuthors = [];
-  for (const id of authorIds) {
-    const user = await getDb().query.users.findFirst({
-      where: eq(schema.users.id, id),
-    });
-    if (user) allAuthors.push(user);
-  }
-
-  const authorMap = new Map(allAuthors.map((a) => [a.id, a]));
+  const authorMap = await findPublicUsersByIds(posts.map((p) => p.authorId));
 
   return posts.map((post) => {
+    const content = sanitizeHtml(post.content);
     // Ensure images is always a proper array; fallback to extracting from content
     let images = normalizeImages(post.images);
     if (!images || images.length === 0) {
-      images = extractImagesFromHtml(post.content);
+      images = extractImagesFromHtml(content);
     }
     return {
       ...post,
+      content,
       images: images.length > 0 ? images : null,
       author: authorMap.get(post.authorId) || null,
     };
@@ -122,15 +116,21 @@ export async function findPosts(options: {
 export async function findPostById(id: number) {
   const post = await getDb().query.posts.findFirst({
     where: eq(schema.posts.id, id),
-    with: { author: true },
   });
   if (!post) return null;
+  const content = sanitizeHtml(post.content);
+  const authorMap = await findPublicUsersByIds([post.authorId]);
   // Ensure images is always a proper array; fallback to extracting from content
   let images = normalizeImages(post.images);
   if (!images || images.length === 0) {
-    images = extractImagesFromHtml(post.content);
+    images = extractImagesFromHtml(content);
   }
-  return { ...post, images: images.length > 0 ? images : null };
+  return {
+    ...post,
+    content,
+    images: images.length > 0 ? images : null,
+    author: authorMap.get(post.authorId) || null,
+  };
 }
 
 export async function findFeaturedPosts(limit = 6) {
@@ -155,25 +155,26 @@ export async function createPost(data: {
 }) {
   // For non-article posts, merge uploaded images with content images
   // For articles, images are embedded inline in content — don't duplicate in images field
-  const contentImages = data.isArticle ? [] : extractImagesFromHtml(data.content);
+  const content = sanitizeHtml(data.content);
+  const contentImages = data.isArticle ? [] : extractImagesFromHtml(content);
   const mergedImages = data.images && data.images.length > 0
     ? [...data.images, ...contentImages.filter((url) => !data.images!.includes(url))]
     : contentImages.length > 0 ? contentImages : null;
 
   // Extract tags from content and auto-detect sky explanation
-  const tags = extractTagsFromHtml(data.content);
+  const tags = extractTagsFromHtml(content);
   const isSkyExplanation = tags.includes("天象解说图");
 
   // Auto-generate title from content if empty
   let title = data.title.trim();
   if (!title) {
-    const plainText = extractPlainTextFromHtml(data.content);
+    const plainText = extractPlainTextFromHtml(content);
     title = plainText.slice(0, 30) + (plainText.length > 30 ? "..." : "");
   }
 
   const insertData: InsertPost = {
     title,
-    content: data.content,
+    content,
     authorId: data.authorId,
     category: data.category as InsertPost["category"],
     region: data.region || null,
@@ -206,9 +207,10 @@ export async function updatePost(
   const updateData: Partial<InsertPost> = {};
   if (data.title !== undefined) updateData.title = data.title;
   if (data.content !== undefined) {
-    updateData.content = data.content;
+    const content = sanitizeHtml(data.content);
+    updateData.content = content;
     // For articles, images are inline — don't extract to avoid duplication
-    const contentImages = data.isArticle ? [] : extractImagesFromHtml(data.content);
+    const contentImages = data.isArticle ? [] : extractImagesFromHtml(content);
     const existingImages = data.images || [];
     const mergedImages = existingImages.length > 0
       ? [...existingImages, ...contentImages.filter((url) => !existingImages.includes(url))]
@@ -216,7 +218,7 @@ export async function updatePost(
     updateData.images = mergedImages;
 
     // Re-extract tags and auto-detect sky explanation
-    const tags = extractTagsFromHtml(data.content);
+    const tags = extractTagsFromHtml(content);
     updateData.tags = tags.length > 0 ? tags : null;
     updateData.isSkyExplanation = tags.includes("天象解说图");
   } else if (data.images !== undefined) {
@@ -301,25 +303,18 @@ export async function searchPosts(options: {
     .limit(limit)
     .offset(offset);
 
-  // Get authors
-  const authorIds = [...new Set(posts.map((p) => p.authorId))];
-  const allAuthors = [];
-  for (const id of authorIds) {
-    const user = await db.query.users.findFirst({
-      where: eq(schema.users.id, id),
-    });
-    if (user) allAuthors.push(user);
-  }
-  const authorMap = new Map(allAuthors.map((a) => [a.id, a]));
+  const authorMap = await findPublicUsersByIds(posts.map((p) => p.authorId));
 
   return {
     posts: posts.map((post) => {
+      const content = sanitizeHtml(post.content);
       let images = normalizeImages(post.images);
       if (!images || images.length === 0) {
-        images = extractImagesFromHtml(post.content);
+        images = extractImagesFromHtml(content);
       }
       return {
         ...post,
+        content,
         images: images.length > 0 ? images : null,
         author: authorMap.get(post.authorId) || null,
       };
@@ -329,10 +324,12 @@ export async function searchPosts(options: {
 }
 
 export async function reorderSkyGalleryPosts(orderedIds: number[]) {
-  for (let i = 0; i < orderedIds.length; i++) {
-    await getDb()
-      .update(schema.posts)
-      .set({ sortOrder: i })
-      .where(eq(schema.posts.id, orderedIds[i]));
-  }
+  await getDb().transaction(async (tx) => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await tx
+        .update(schema.posts)
+        .set({ sortOrder: i })
+        .where(eq(schema.posts.id, orderedIds[i]));
+    }
+  });
 }

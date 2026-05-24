@@ -25,11 +25,6 @@ services:
     container_name: TXtest-db
     env_file:
       - .env.local
-    environment:
-      - MYSQL_ROOT_PASSWORD=TXtest725
-      - MYSQL_DATABASE=TXtest
-      - MYSQL_USER=TXtest
-      - MYSQL_PASSWORD=TXtest725
     ports:
       - "3307:3306"
     volumes:

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,15 +33,6 @@ export default function Register() {
     onSuccess: (data) => {
       setStep(2);
       setCountdown(60);
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
       if (data.devCode) {
         setCode(data.devCode);
       }
@@ -50,6 +41,14 @@ export default function Register() {
       setError(err.message || "发送失败");
     },
   });
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = window.setInterval(() => {
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [countdown > 0]);
 
   const register = trpc.emailAuth.register.useMutation({
     onSuccess: async () => {

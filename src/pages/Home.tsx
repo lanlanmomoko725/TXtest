@@ -40,6 +40,13 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [carouselPosts.length, nextSlide]);
 
+  useEffect(() => {
+    setCurrentIndex((index) => {
+      if (carouselPosts.length === 0) return 0;
+      return Math.min(index, carouselPosts.length - 1);
+    });
+  }, [carouselPosts.length]);
+
   const currentPost = carouselPosts[currentIndex];
 
   return (

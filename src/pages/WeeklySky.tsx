@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, ArrowLeft, Pencil, Check, X, Camera, Star } from "lucide-react";
+import { uploadImage } from "@/lib/upload";
 
 export default function WeeklySky() {
   const { user } = useAuth();
@@ -46,14 +47,8 @@ export default function WeeklySky() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success && data.url) {
-        setEditImage(data.url);
-      }
+      setEditImage(await uploadImage(file));
     } catch (err) {
       console.error("Upload failed:", err);
     }

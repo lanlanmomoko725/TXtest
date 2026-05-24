@@ -3,17 +3,19 @@ import { bodyLimit } from "hono/body-limit";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
-import { createContext } from "./context";
+import { authenticateRequest, createContext } from "./context";
 import { env } from "./lib/env";
-import { writeFile, readdir, stat, readFile, unlink } from "fs/promises";
-import { mkdir } from "fs/promises";
+import { writeFile, readdir, stat, readFile, unlink, mkdir } from "fs/promises";
 import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { tmpdir } from "os";
-const execFileAsync = promisify(execFile);
+import { detectImageFormat, extensionForFormat, MAX_UPLOAD_BYTES } from "./lib/upload-validation";
 
-async function tryHeifConvertCli(heicBuffer: Buffer): Promise<Buffer | null> {
+const execFileAsync = promisify(execFile);
+const BODY_LIMIT_BYTES = 15 * 1024 * 1024;
+
+async function tryHeifConvertCli(heicBuffer: Buffer<ArrayBufferLike>): Promise<Buffer<ArrayBufferLike> | null> {
   const tmpIn = join(tmpdir(), `heic-${Math.random().toString(36).slice(2)}.heic`);
   const tmpOut = join(tmpdir(), `heic-${Math.random().toString(36).slice(2)}.jpg`);
   try {
@@ -22,8 +24,9 @@ async function tryHeifConvertCli(heicBuffer: Buffer): Promise<Buffer | null> {
     const jpeg = await readFile(tmpOut);
     console.log(`[upload] heif-convert CLI succeeded (${heicBuffer.length} -> ${jpeg.length} bytes)`);
     return jpeg;
-  } catch (e: any) {
-    console.error(`[upload] heif-convert CLI failed: ${e?.message ?? String(e)}`);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[upload] heif-convert CLI failed: ${message}`);
     return null;
   } finally {
     await unlink(tmpIn).catch(() => {});
@@ -31,183 +34,148 @@ async function tryHeifConvertCli(heicBuffer: Buffer): Promise<Buffer | null> {
   }
 }
 
+function attachHeaders(response: Response, headers: Headers): Response {
+  headers.forEach((value, key) => response.headers.append(key, value));
+  return response;
+}
+
+function isAllowedRequestOrigin(headers: Headers): boolean {
+  const origin = headers.get("origin");
+  if (!origin) return true;
+
+  try {
+    const originUrl = new URL(origin);
+    const host = headers.get("host");
+    if (host && originUrl.host === host) return true;
+
+    const allowedOrigins = env.allowedOrigins
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return allowedOrigins.includes(originUrl.origin);
+  } catch {
+    return false;
+  }
+}
+
+function uploadDir(): string {
+  return env.isProduction ? join(process.cwd(), "dist/public/uploads") : join(process.cwd(), "public/uploads");
+}
+
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+app.use("/api/*", async (c, next) => {
+  const method = c.req.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    await next();
+    return;
+  }
 
-// File upload endpoint
+  if (!isAllowedRequestOrigin(c.req.raw.headers)) {
+    return c.json({ error: "Invalid request origin" }, 403);
+  }
+
+  await next();
+});
+
+app.use(bodyLimit({ maxSize: BODY_LIMIT_BYTES }));
+
 app.post("/api/upload", async (c) => {
+  const authHeaders = new Headers();
   try {
+    const user = await authenticateRequest(c.req.raw.headers, authHeaders);
+    if (!user) {
+      return attachHeaders(c.json({ error: "Authentication required" }, 401), authHeaders);
+    }
+
     const body = await c.req.parseBody({ all: false });
     const file = body.file as File | undefined;
     if (!file) {
-      return c.json({ error: "No file uploaded" }, 400);
+      return attachHeaders(c.json({ error: "No file uploaded" }, 400), authHeaders);
     }
 
-    const ua = c.req.header("user-agent") ?? "";
-    console.log(`[upload] UA=${ua.slice(0, 60)} name=${file.name} type=${file.type} size=${file.size}`);
-
-    // Read file bytes for format detection
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    // Quick format detection by magic bytes
-    const isJpg = buffer[0] === 0xFF && buffer[1] === 0xD8;
-    const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
-    const isWebp = buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46
-                && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50;
-    const isGif = buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38;
-
-    // -- HEIC/HEIF detection by magic bytes --
-    // Only check if NOT already identified as a standard format (JPG/PNG/WebP/GIF)
-    // ISO BMFF container: bytes 4-7 = "ftyp", bytes 8-11 = brand
-    const isHeif = !isJpg && !isPng && !isWebp && !isGif
-      && buffer.length >= 12
-      && buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70  // "ftyp"
-      && (     (buffer[8] === 0x68 && buffer[9] === 0x65)  // "he" (heic / heix / hevc / hevx)
-            || (buffer[8] === 0x6D && buffer[9] === 0x69)  // "mi" (mif1)
-            || (buffer[8] === 0x6D && buffer[9] === 0x73)  // "ms" (msf1)
-         );
-
-    // Debug: log first 16 bytes as hex when HEIC-like file is seen
-    if (buffer.length >= 12 && buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
-      const hex = [...buffer.slice(0, 16)].map(b => b.toString(16).padStart(2, '0')).join(' ');
-      console.log(`[upload] ISO BMFF detected, header hex: ${hex}, isHeif=${isHeif}, isJpg=${isJpg}, isPng=${isPng}`);
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return attachHeaders(c.json({ error: "File size exceeds the 10MB limit" }, 400), authHeaders);
     }
 
-    // Determine final extension and let variable hold the write buffer
-    let writeBuffer = buffer;
-    let finalExt: string | undefined;
-    if (isHeif) {
-      console.log(`[upload] HEIC/HEIF detected, converting to JPEG (${buffer.length} bytes)...`);
+    console.log(`[upload] user=${user.id} name=${file.name} type=${file.type} size=${file.size}`);
+
+    const buffer: Buffer<ArrayBufferLike> = Buffer.from(await file.arrayBuffer());
+    const format = detectImageFormat(buffer);
+    if (!format) {
+      return attachHeaders(c.json({ error: "Only JPG, PNG, GIF, WebP, and HEIF images are supported" }, 400), authHeaders);
+    }
+
+    let writeBuffer: Buffer<ArrayBufferLike> = buffer;
+    let safeExt = extensionForFormat(format);
+
+    if (format === "heif") {
       try {
         const sharp = (await import("sharp")).default;
-        writeBuffer = await sharp(buffer).jpeg({ quality: 85, mozjpeg: true }).toBuffer();
-        finalExt = "jpg";
-        console.log(`[upload] HEIC converted to JPEG (${writeBuffer.length} bytes)`);
-      } catch (convErr: any) {
-        const msg = convErr?.message ?? String(convErr);
-        console.error(`[upload] HEIC conversion failed: ${msg}`);
-
-        // Handle truncated HEIC files: pad to container's expected size
-        const seekMatch = msg.match(/bad seek to (\d+)/);
-        let paddedBuffer: Buffer | null = null;
-        if (seekMatch) {
-          const expectedSize = parseInt(seekMatch[1], 10);
-          if (buffer.length < expectedSize && expectedSize < buffer.length + 65536) {
-            paddedBuffer = Buffer.alloc(expectedSize);
-            buffer.copy(paddedBuffer);
-            console.log(`[upload] Padded truncated HEIC: ${buffer.length} -> ${expectedSize}`);
-          }
+        writeBuffer = await sharp(buffer, { limitInputPixels: 80_000_000 }).jpeg({ quality: 85, mozjpeg: true }).toBuffer();
+        safeExt = "jpg";
+        console.log(`[upload] HEIF converted with sharp (${buffer.length} -> ${writeBuffer.length} bytes)`);
+      } catch (sharpErr: unknown) {
+        const message = sharpErr instanceof Error ? sharpErr.message : String(sharpErr);
+        console.error(`[upload] sharp HEIF conversion failed: ${message}`);
+        const cliBuffer = await tryHeifConvertCli(buffer);
+        if (!cliBuffer) {
+          return attachHeaders(c.json({ error: "HEIF conversion failed. Please upload JPG, PNG, GIF, or WebP." }, 400), authHeaders);
         }
-
-        // Retry sharp with padded buffer (if we have one) or original buffer
-        const toConvert = paddedBuffer ?? buffer;
-        if (toConvert !== buffer || !seekMatch) {
-          try {
-            const sharp = (await import("sharp")).default;
-            writeBuffer = await sharp(toConvert).jpeg({ quality: 85, mozjpeg: true }).toBuffer();
-            finalExt = "jpg";
-            console.log(`[upload] HEIC converted after retry (${writeBuffer.length} bytes)`);
-          } catch (retryErr: any) {
-            console.error(`[upload] Sharp retry also failed: ${retryErr?.message ?? String(retryErr)}`);
-          }
-        }
-
-        // If sharp still failed, try system heif-convert CLI
-        if (!finalExt) {
-          const cliInput = paddedBuffer ?? buffer;
-          writeBuffer = await tryHeifConvertCli(cliInput);
-          if (writeBuffer) {
-            finalExt = "jpg";
-          }
-        }
-
-        // Last resort
-        if (!finalExt) {
-          writeBuffer = buffer;
-          finalExt = "heic";
-          console.log(`[upload] All conversion methods failed, saving original HEIC`);
-        }
+        writeBuffer = cliBuffer;
+        safeExt = "jpg";
       }
     }
 
-    // MIME type validation (skip MIME check for HEIC files since we already converted)
-    if (!isHeif) {
-      const lowerType = file.type.toLowerCase();
-      if (!lowerType.startsWith("image/") || lowerType.includes("heic") || lowerType.includes("heif")) {
-        return c.json({
-          error: "仅支持 JPG、PNG、GIF、WebP 格式的图片。\n\nOnly JPG, PNG, GIF, WebP images are supported.",
-        }, 400);
-      }
+    if (writeBuffer.length > MAX_UPLOAD_BYTES) {
+      return attachHeaders(c.json({ error: "Converted file exceeds the 10MB limit" }, 400), authHeaders);
     }
 
-    // Validate file size (10MB max, after conversion for HEIC)
-    if (writeBuffer.length > 10 * 1024 * 1024) {
-      return c.json({ error: "文件大小超过 10MB 限制" }, 400);
-    }
-
-    // Generate unique filename (normalize extension to lowercase)
-    let safeExt: string;
-    if (finalExt) {
-      safeExt = finalExt.toLowerCase();
-    } else {
-      const rawExt = file.name.split(".").pop() ?? "jpg";
-      const ext = rawExt.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-      safeExt = ["jpg", "jpeg", "png", "gif", "webp"].includes(ext) ? ext : "jpg";
-    }
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 10);
     const filename = `${timestamp}-${random}.${safeExt}`;
 
-    // Determine upload directory
-    const uploadDir = env.isProduction
-      ? join(process.cwd(), "dist/public/uploads")
-      : join(process.cwd(), "public/uploads");
+    const dir = uploadDir();
+    await mkdir(dir, { recursive: true });
 
-    await mkdir(uploadDir, { recursive: true });
-
-    const filePath = join(uploadDir, filename);
+    const filePath = join(dir, filename);
     await writeFile(filePath, writeBuffer);
 
-    // Verify file was saved
-    const fileStats = await import("fs/promises").then((m) => m.stat(filePath));
+    const fileStats = await stat(filePath);
     if (fileStats.size === 0 || fileStats.size !== writeBuffer.length) {
       console.error(`[upload] File size mismatch: expected ${writeBuffer.length}, got ${fileStats.size}`);
-      return c.json({ error: "文件保存失败，请重试" }, 500);
+      return attachHeaders(c.json({ error: "File save failed. Please try again." }, 500), authHeaders);
     }
-    console.log(`[upload] Saved ${filename} (${fileStats.size} bytes)`);
 
-    const url = `/uploads/${filename}`;
-    return c.json({ success: true, url });
+    return attachHeaders(c.json({ success: true, url: `/uploads/${filename}` }), authHeaders);
   } catch (err) {
     console.error("Upload error:", err);
-    return c.json({ error: "上传失败，请重试" }, 500);
+    return attachHeaders(c.json({ error: "Upload failed. Please try again." }, 500), authHeaders);
   }
 });
 
-// Debug endpoint: list uploaded files
-app.get("/api/debug/uploads", async (c) => {
-  try {
-    const uploadDir = env.isProduction
-      ? join(process.cwd(), "dist/public/uploads")
-      : join(process.cwd(), "public/uploads");
-    const files = await readdir(uploadDir);
-    const fileList = await Promise.all(
-      files.map(async (name) => {
-        const s = await stat(join(uploadDir, name));
-        return { name, size: s.size, mtime: s.mtime };
-      })
-    );
-    return c.json({
-      uploadDir,
-      isProduction: env.isProduction,
-      count: fileList.length,
-      files: fileList,
-    });
-  } catch (err) {
-    return c.json({ error: String(err), uploadDir: env.isProduction ? "dist/public/uploads" : "public/uploads" }, 500);
-  }
-});
+if (!env.isProduction) {
+  app.get("/api/debug/uploads", async (c) => {
+    try {
+      const dir = uploadDir();
+      const files = await readdir(dir);
+      const fileList = await Promise.all(
+        files.map(async (name) => {
+          const fileStat = await stat(join(dir, name));
+          return { name, size: fileStat.size, mtime: fileStat.mtime };
+        }),
+      );
+      return c.json({
+        uploadDir: dir,
+        isProduction: env.isProduction,
+        count: fileList.length,
+        files: fileList,
+      });
+    } catch (err) {
+      return c.json({ error: String(err), uploadDir: uploadDir() }, 500);
+    }
+  });
+}
 
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
@@ -217,6 +185,7 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
+
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;

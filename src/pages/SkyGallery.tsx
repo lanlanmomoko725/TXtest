@@ -1,5 +1,4 @@
-import { useState, useCallback, useRef } from "react";
-import { Link } from "react-router";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import PostCard from "@/components/PostCard";
@@ -17,9 +16,11 @@ export default function SkyGalleryPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const isMobile = useIsMobile();
+  const autoOpenRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window !== "undefined" && sessionStorage.getItem("sidebar_auto_open") === "1") {
       sessionStorage.removeItem("sidebar_auto_open");
+      autoOpenRef.current = true;
       return true;
     }
     return typeof window !== "undefined" ? window.innerWidth >= 768 : true;
@@ -31,6 +32,16 @@ export default function SkyGalleryPage() {
     limit: 50,
     offset: 0,
   });
+
+  useEffect(() => {
+    const mobile = typeof window !== "undefined" ? window.innerWidth < 768 : isMobile;
+    if (!mobile) {
+      setSidebarOpen(true);
+    } else if (!autoOpenRef.current) {
+      setSidebarOpen(false);
+    }
+    autoOpenRef.current = false;
+  }, [isMobile]);
 
   const utils = trpc.useUtils();
   const reorderMutation = trpc.post.reorderSkyGallery.useMutation({

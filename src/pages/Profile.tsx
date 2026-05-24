@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PostCard from "@/components/PostCard";
 import { Loader2, User, Cloud, MapPin, Star, Pencil, Camera, X, Check } from "lucide-react";
 import { useState, useRef } from "react";
+import { uploadImage } from "@/lib/upload";
 
 function calcDisplayLength(name: string): number {
   let len = 0;
@@ -86,16 +87,11 @@ export default function Profile() {
       return;
     }
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success && data.url) {
-        setEditAvatar(data.url);
-      }
+      setEditAvatar(await uploadImage(file));
     } catch (err) {
       console.error("Upload failed:", err);
+      setNameError(err instanceof Error ? err.message : "图片上传失败");
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";

@@ -18,6 +18,7 @@ import {
   Redo,
   X,
 } from "lucide-react";
+import { uploadImage } from "@/lib/upload";
 
 interface RichEditorProps {
   value: string;
@@ -54,6 +55,7 @@ export default function RichEditor({
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEmpty, setIsEmpty] = useState(!value || value === "<p><br></p>");
+  const enterCleanupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Image alignment toolbar state
   const [imgToolbar, setImgToolbar] = useState<{
     visible: boolean;
@@ -73,6 +75,14 @@ export default function RichEditor({
       el.innerHTML = "<p><br></p>";
       setIsEmpty(true);
     }
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (enterCleanupTimeoutRef.current) {
+        clearTimeout(enterCleanupTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleInput = () => {
@@ -95,7 +105,10 @@ export default function RichEditor({
       // Let default behavior happen but ensure we get p tags
       // The browser usually handles this well in contentEditable with execCommand
       // But we need to clean up after
-      setTimeout(() => {
+      if (enterCleanupTimeoutRef.current) {
+        clearTimeout(enterCleanupTimeoutRef.current);
+      }
+      enterCleanupTimeoutRef.current = setTimeout(() => {
         const el = editorRef.current;
         if (!el) return;
         // Remove any divs that were created, replace with p
@@ -106,6 +119,7 @@ export default function RichEditor({
           div.parentNode?.replaceChild(p, div);
         });
         handleInput();
+        enterCleanupTimeoutRef.current = null;
       }, 0);
     }
   };
@@ -121,12 +135,9 @@ export default function RichEditor({
     }
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
 
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      const data: { success: boolean; url?: string; error?: string } = { success: true, url: await uploadImage(file) };
       if (data.success && data.url) {
         // insert image
         const el = editorRef.current;
@@ -236,7 +247,7 @@ export default function RichEditor({
   }, [execCmd]);
 
   const handleFirstLineIndent = useCallback(() => {
-    const block = getCurrentBlock();
+    const block = getCurrentBlock() as HTMLElement | null;
     if (block) {
       // Toggle: if already has 2em indent, remove it; otherwise apply
       if (block.style.textIndent === "2em") {
@@ -270,7 +281,7 @@ export default function RichEditor({
   }, []);
 
   const alignImage = useCallback((align: "left" | "center" | "right") => {
-    const el = imgToolbar.figure;
+    const el = imgToolbar.figure as HTMLElement | null;
     if (!el) return;
     if (el.tagName === "FIGURE") {
       el.style.textAlign = align;

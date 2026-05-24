@@ -1,22 +1,25 @@
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { getDb } from "./connection";
+import { sanitizeHtml } from "@contracts/html-sanitizer";
 
 export async function findAboutUs() {
   const rows = await getDb()
     .select()
     .from(schema.aboutUs)
     .limit(1);
-  return rows.at(0) || null;
+  const about = rows.at(0);
+  return about ? { ...about, content: sanitizeHtml(about.content) || null } : null;
 }
 
 export async function upsertAboutUs(data: { content?: string }) {
+  const content = data.content === undefined ? undefined : sanitizeHtml(data.content);
   const existing = await findAboutUs();
   if (existing) {
     await getDb()
       .update(schema.aboutUs)
       .set({
-        ...data,
+        content,
         updatedAt: new Date(),
       })
       .where(eq(schema.aboutUs.id, existing.id));
@@ -26,7 +29,7 @@ export async function upsertAboutUs(data: { content?: string }) {
   await getDb()
     .insert(schema.aboutUs)
     .values({
-      content: data.content || null,
+      content: content || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

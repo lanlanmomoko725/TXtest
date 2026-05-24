@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import RichEditor from "@/components/RichEditor";
 import { Loader2, ArrowLeft, Pencil, Check, X, Info } from "lucide-react";
+import { sanitizeHtml } from "@contracts/html-sanitizer";
 
 export default function AboutUs() {
   const { user } = useAuth();
@@ -100,7 +101,7 @@ export default function AboutUs() {
           ) : about?.content ? (
             <div
               className="prose prose-slate max-w-none"
-              dangerouslySetInnerHTML={{ __html: about.content }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(about.content) }}
             />
           ) : (
             <div className="text-center py-20">

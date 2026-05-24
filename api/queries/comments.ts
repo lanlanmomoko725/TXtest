@@ -1,6 +1,7 @@
 import { eq, desc } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { getDb } from "./connection";
+import { findPublicUsersByIds } from "./users";
 
 export async function findCommentsByPost(postId: number) {
   const comments = await getDb()
@@ -9,16 +10,7 @@ export async function findCommentsByPost(postId: number) {
     .where(eq(schema.comments.postId, postId))
     .orderBy(desc(schema.comments.createdAt));
 
-  const authorIds = [...new Set(comments.map((c) => c.authorId))];
-  const allAuthors = [];
-  for (const id of authorIds) {
-    const user = await getDb().query.users.findFirst({
-      where: eq(schema.users.id, id),
-    });
-    if (user) allAuthors.push(user);
-  }
-  
-  const authorMap = new Map(allAuthors.map(a => [a.id, a]));
+  const authorMap = await findPublicUsersByIds(comments.map((c) => c.authorId));
   
   return comments.map(comment => ({
     ...comment,
@@ -42,7 +34,11 @@ export async function createComment(data: {
 
   const comment = await getDb().query.comments.findFirst({
     where: eq(schema.comments.id, id),
-    with: { author: true },
   });
-  return comment;
+  if (!comment) return null;
+  const authorMap = await findPublicUsersByIds([comment.authorId]);
+  return {
+    ...comment,
+    author: authorMap.get(comment.authorId) || null,
+  };
 }

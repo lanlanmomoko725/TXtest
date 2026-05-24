@@ -6,6 +6,7 @@ import { createAuditLog } from "./lib/audit";
 import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
 import { desc, eq, asc } from "drizzle-orm";
+import { toAdminUser } from "./lib/user-dto";
 
 async function getRootAdminId(): Promise<number | null> {
   const rows = await getDb()
@@ -101,7 +102,7 @@ export const adminRouter = createRouter({
           details: { email: input.email, role: input.role, name: input.name },
         });
 
-        return { success: true, user };
+        return { success: true, user: toAdminUser(user) };
       }),
 
     delete: adminQuery

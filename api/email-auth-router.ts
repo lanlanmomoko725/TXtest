@@ -11,9 +11,18 @@ import { signAccessToken, signRefreshToken } from "./lib/session";
 import { env } from "./lib/env";
 import { getSessionCookieOptions } from "./lib/cookies";
 import { Session } from "@contracts/constants";
+import { toCurrentUser } from "./lib/user-dto";
 
 function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function validateDisplayNameLength(name: string): boolean {
+  let displayLen = 0;
+  for (const char of name) {
+    displayLen += char.charCodeAt(0) > 127 ? 2 : 1;
+  }
+  return displayLen <= 20;
 }
 
 function setAuthCookies(resHeaders: Headers, reqHeaders: Headers, accessToken: string, refreshToken: string) {
@@ -41,27 +50,24 @@ function setAuthCookies(resHeaders: Headers, reqHeaders: Headers, accessToken: s
 }
 
 export const emailAuthRouter = createRouter({
-  // Send verification code
   sendCode: publicQuery
     .input(
       z.object({
-        email: z.string().email("请输入有效的邮箱地址"),
-      })
+        email: z.string().email("Please enter a valid email address"),
+      }),
     )
     .mutation(async ({ input }) => {
-      const { email } = input;
+      const email = input.email.toLowerCase();
 
       const existing = await findUserByEmail(email);
-      if (existing && existing.password) {
-        throw new Error("该邮箱已注册，请直接登录");
+      if (existing?.password) {
+        throw new Error("This email is already registered. Please log in.");
       }
 
       const code = generateCode();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await getDb()
-        .delete(schema.verificationCodes)
-        .where(eq(schema.verificationCodes.email, email));
+      await getDb().delete(schema.verificationCodes).where(eq(schema.verificationCodes.email, email));
 
       await getDb().insert(schema.verificationCodes).values({
         email,
@@ -72,17 +78,25 @@ export const emailAuthRouter = createRouter({
       try {
         await sendVerificationEmail(email, code);
       } catch (err) {
+        if (!env.isProduction && (!env.smtpHost || !env.smtpUser || !env.smtpPass)) {
+          console.warn("Email service is not configured; returning devCode in non-production.");
+        } else {
+        await getDb().delete(schema.verificationCodes).where(eq(schema.verificationCodes.email, email));
         console.error("Failed to send email:", err);
+        throw new Error("Verification email failed to send. Please try again later.");
+        }
       }
 
-      return {
+      const result: { success: true; message: string; devCode?: string } = {
         success: true,
-        message: "验证码已发送，请查收邮件（如未收到，可使用下方验证码）",
-        devCode: code,
+        message: "Verification code sent. Please check your email.",
       };
+      if (!env.isProduction) {
+        result.devCode = code;
+      }
+      return result;
     }),
 
-  // Verify code and register
   register: publicQuery
     .input(
       z.object({
@@ -90,21 +104,19 @@ export const emailAuthRouter = createRouter({
         code: z.string().length(6),
         name: z.string().min(1).max(50),
         password: z.string().min(6).max(100),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
-      let displayLen = 0;
-      for (const char of input.name) {
-        displayLen += char.charCodeAt(0) > 127 ? 2 : 1;
+      const email = input.email.toLowerCase();
+      const { code, name, password } = input;
+
+      if (!validateDisplayNameLength(name)) {
+        throw new Error("Display name is too long.");
       }
-      if (displayLen > 20) {
-        throw new Error("昵称过长：最多10个汉字或20个英文字母");
-      }
-      const { email, code, name, password } = input;
 
       const existing = await findUserByEmail(email);
-      if (existing && existing.password) {
-        throw new Error("该邮箱已注册");
+      if (existing?.password) {
+        throw new Error("This email is already registered.");
       }
 
       const codeRecord = await getDb()
@@ -115,23 +127,20 @@ export const emailAuthRouter = createRouter({
         .limit(1);
 
       if (!codeRecord.length) {
-        throw new Error("验证码不存在，请重新获取");
+        throw new Error("Verification code not found. Please request a new one.");
       }
 
       const record = codeRecord[0];
       if (record.code !== code) {
-        throw new Error("验证码错误");
+        throw new Error("Invalid verification code.");
       }
 
       if (new Date() > record.expiresAt) {
-        throw new Error("验证码已过期，请重新获取");
+        throw new Error("Verification code expired. Please request a new one.");
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Auto-assign admin if email matches ADMIN_EMAIL
-      const isAdmin = env.adminEmail && email.toLowerCase() === env.adminEmail.toLowerCase();
-
+      const isAdmin = env.adminEmail && email === env.adminEmail.toLowerCase();
       const user = await createEmailUser({
         name,
         email,
@@ -140,12 +149,10 @@ export const emailAuthRouter = createRouter({
       });
 
       if (!user) {
-        throw new Error("注册失败");
+        throw new Error("Registration failed.");
       }
 
-      await getDb()
-        .delete(schema.verificationCodes)
-        .where(eq(schema.verificationCodes.email, email));
+      await getDb().delete(schema.verificationCodes).where(eq(schema.verificationCodes.email, email));
 
       const accessToken = await signAccessToken(user.id);
       const refreshToken = await signRefreshToken(user.id);
@@ -153,51 +160,38 @@ export const emailAuthRouter = createRouter({
 
       return {
         success: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-        },
+        user: toCurrentUser(user),
       };
     }),
 
-  // Email login
   login: publicQuery
     .input(
       z.object({
         email: z.string().email(),
         password: z.string().min(1),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { email, password } = input;
+      const email = input.email.toLowerCase();
+      const { password } = input;
 
-      // Rate limit check
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       const attempts = await getDb()
         .select({ count: sql<number>`count(*)` })
         .from(schema.loginAttempts)
-        .where(
-          and(
-            eq(schema.loginAttempts.email, email),
-            gte(schema.loginAttempts.attemptedAt, oneHourAgo),
-          )
-        );
+        .where(and(eq(schema.loginAttempts.email, email), gte(schema.loginAttempts.attemptedAt, oneHourAgo)));
       const attemptCount = Number(attempts[0]?.count ?? 0);
       if (attemptCount >= 5) {
-        throw new Error("登录尝试次数过多，请1小时后再试");
+        throw new Error("Too many login attempts. Please try again later.");
       }
 
       const user = await findUserByEmail(email);
-      if (!user || !user.password) {
-        // Record failed attempt
+      if (!user?.password) {
         await getDb().insert(schema.loginAttempts).values({
           email,
           ip: ctx.req.headers.get("x-forwarded-for") || "unknown",
         });
-        throw new Error("邮箱或密码错误");
+        throw new Error("Email or password is incorrect.");
       }
 
       const valid = await bcrypt.compare(password, user.password);
@@ -206,19 +200,11 @@ export const emailAuthRouter = createRouter({
           email,
           ip: ctx.req.headers.get("x-forwarded-for") || "unknown",
         });
-        throw new Error("邮箱或密码错误");
+        throw new Error("Email or password is incorrect.");
       }
 
-      // Clear failed attempts on success
-      await getDb()
-        .delete(schema.loginAttempts)
-        .where(eq(schema.loginAttempts.email, email));
-
-      // Update last sign in
-      await getDb()
-        .update(schema.users)
-        .set({ lastSignInAt: new Date() })
-        .where(eq(schema.users.id, user.id));
+      await getDb().delete(schema.loginAttempts).where(eq(schema.loginAttempts.email, email));
+      await getDb().update(schema.users).set({ lastSignInAt: new Date() }).where(eq(schema.users.id, user.id));
 
       const accessToken = await signAccessToken(user.id);
       const refreshToken = await signRefreshToken(user.id);
@@ -226,13 +212,7 @@ export const emailAuthRouter = createRouter({
 
       return {
         success: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-        },
+        user: toCurrentUser(user),
       };
     }),
 });

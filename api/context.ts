@@ -12,7 +12,7 @@ export type TrpcContext = {
   user?: User;
 };
 
-async function authenticateRequest(headers: Headers, resHeaders: Headers): Promise<User | undefined> {
+export async function authenticateRequest(headers: Headers, resHeaders: Headers): Promise<User | undefined> {
   const cookies = cookie.parse(headers.get("cookie") || "");
 
   // 1. Try access token first
