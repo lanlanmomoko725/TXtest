@@ -95,12 +95,6 @@ export default function Login() {
               ) : null}
               登录
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
-              还没有账号？{" "}
-              <Link to="/register" className="text-primary hover:underline font-medium">
-                立即注册
-              </Link>
-            </p>
           </form>
         </CardContent>
       </Card>

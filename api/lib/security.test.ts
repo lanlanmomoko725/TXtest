@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { User } from "@db/schema";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { detectImageFormat, extensionForFormat } from "./upload-validation";
 import { toAdminUser, toCurrentUser, toPublicUser } from "./user-dto";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
 
 const user = {
   id: 1,
@@ -62,5 +67,24 @@ describe("upload validation", () => {
   it("normalizes HEIF output extension to jpg", () => {
     expect(extensionForFormat("heif")).toBe("jpg");
     expect(extensionForFormat("webp")).toBe("webp");
+  });
+});
+
+describe("environment config", () => {
+  it("does not require SMTP settings for production boot", async () => {
+    vi.resetModules();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_SECRET", "test-secret-with-at-least-thirty-two-chars");
+    vi.stubEnv("DATABASE_URL", "mysql://user:pass@db:3306/skyweb");
+    vi.stubEnv("SMTP_HOST", "");
+    vi.stubEnv("SMTP_USER", "");
+    vi.stubEnv("SMTP_PASS", "");
+
+    const { env } = await import("./env");
+
+    expect(env.isProduction).toBe(true);
+    expect(env.smtpHost).toBe("");
+    expect(env.smtpUser).toBe("");
+    expect(env.smtpPass).toBe("");
   });
 });

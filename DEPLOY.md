@@ -225,3 +225,22 @@ sudo systemctl stop nginx  # 如果宿主机有 Nginx 冲突
 docker system prune -a      # 清理未使用的镜像和容器
 docker volume prune         # 清理未使用的数据卷
 ```
+
+## 当前账号模式：管理员邀请制
+
+当前部署暂不开放公开邮箱验证码注册，生产环境也不再要求配置 SMTP。首次部署时先创建初始管理员：
+
+```bash
+docker compose exec app node scripts/seed-admin.js
+```
+
+初始管理员登录后，通过 `/admin/users` 创建内部用户账号并分发初始密码。后续如需恢复邮箱验证码注册，再补充 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_FROM` 并重新启用公开注册入口。
+
+如果线上因为缺少 SMTP 配置导致旧容器启动失败，更新代码后执行：
+
+```bash
+docker compose up -d --build --force-recreate app nginx
+docker compose logs --tail=80 app
+curl -i http://127.0.0.1:3000/
+curl -i http://127.0.0.1:81/
+```
