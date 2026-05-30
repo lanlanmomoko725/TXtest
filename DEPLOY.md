@@ -68,7 +68,7 @@ docker compose exec app npx tsx db/seed.ts
 
 ### 5. 访问
 
-打开浏览器访问 `http://你的服务器IP:3000`
+打开浏览器访问 `http://你的服务器IP/`
 
 ---
 
@@ -242,5 +242,5 @@ docker compose exec app node scripts/seed-admin.js
 docker compose up -d --build --force-recreate app nginx
 docker compose logs --tail=80 app
 curl -i http://127.0.0.1:3000/
-curl -i http://127.0.0.1:81/
+curl -i http://127.0.0.1/
 ```
