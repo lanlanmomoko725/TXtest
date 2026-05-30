@@ -3,7 +3,7 @@ import { trpc } from "@/providers/trpc";
 import PostCard from "@/components/PostCard";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { CATEGORY_LABEL_MAP } from "@contracts/constants";
+import { CATEGORY_LABEL_MAP, SKY_CATEGORIES } from "@contracts/constants";
 import { Cloud, MapPin, Loader2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
 
@@ -24,13 +24,7 @@ export default function CategoryPage() {
     : regionId || "";
 
   const description = categoryId
-    ? {
-        cloud: "积云、层云、卷云、积雨云等各种云状",
-        halo: "日晕、月晕、幻日、幻月等光学现象",
-        glory: "日华、月华、彩云等衍射现象",
-        rainbow: "彩虹、双彩虹、月虹等折射现象",
-        other: "极光、流星雨、彗星、奇云等特殊天象",
-      }[categoryId]
+    ? SKY_CATEGORIES.find((cat) => cat.id === categoryId)?.description
     : `${regionId}地区的天象记录`;
 
   return (

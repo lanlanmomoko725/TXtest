@@ -13,6 +13,7 @@ import {
   reorderSkyGalleryPosts,
 } from "./queries/posts";
 import { createAuditLog } from "./lib/audit";
+import { CATEGORY_LABEL_MAP, SKY_CATEGORY_IDS } from "@contracts/constants";
 
 export const postRouter = createRouter({
   list: publicQuery
@@ -80,7 +81,7 @@ export const postRouter = createRouter({
       z.object({
         title: z.string().max(255),
         content: z.string().min(1),
-        category: z.enum(["cloud", "halo", "glory", "rainbow", "other"]),
+        category: z.enum(SKY_CATEGORY_IDS),
         region: z.string().optional(),
         hasLocation: z.boolean().default(false),
         images: z.array(z.string()).optional(),
@@ -89,8 +90,13 @@ export const postRouter = createRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const skyGalleryCategory =
+        ctx.user.role === "admin" && input.skyGalleryCategory
+          ? CATEGORY_LABEL_MAP[input.category]
+          : undefined;
       return createPost({
         ...input,
+        skyGalleryCategory,
         authorId: ctx.user.id,
       });
     }),
@@ -101,7 +107,7 @@ export const postRouter = createRouter({
         id: z.number(),
         title: z.string().min(1).max(255).optional(),
         content: z.string().min(1).optional(),
-        category: z.enum(["cloud", "halo", "glory", "rainbow", "other"]).optional(),
+        category: z.enum(SKY_CATEGORY_IDS).optional(),
         region: z.string().optional(),
         hasLocation: z.boolean().optional(),
         images: z.array(z.string()).optional(),

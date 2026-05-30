@@ -1,3 +1,10 @@
+import {
+  normalizeVideoEmbedSrc,
+  VIDEO_IFRAME_ALLOW,
+  VIDEO_IFRAME_REFERRER_POLICY,
+  VIDEO_IFRAME_SANDBOX,
+} from "./video-embed";
+
 const ALLOWED_TAGS = new Set([
   "a",
   "b",
@@ -10,6 +17,7 @@ const ALLOWED_TAGS = new Set([
   "h2",
   "h3",
   "i",
+  "iframe",
   "img",
   "li",
   "ol",
@@ -21,9 +29,10 @@ const ALLOWED_TAGS = new Set([
 ]);
 
 const VOID_TAGS = new Set(["br", "img"]);
-const GLOBAL_ATTRS = new Set(["style", "title"]);
+const GLOBAL_ATTRS = new Set(["class", "style", "title"]);
 const ATTRS_BY_TAG: Record<string, Set<string>> = {
   a: new Set(["href", "target", "rel"]),
+  iframe: new Set(["src", "allow", "allowfullscreen", "referrerpolicy", "sandbox", "loading"]),
   img: new Set(["src", "alt", "loading"]),
 };
 
@@ -86,6 +95,29 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
   if (!GLOBAL_ATTRS.has(name) && !tagAttrs?.has(name)) return null;
   if (name.startsWith("on")) return null;
 
+  if (tagName === "iframe") {
+    if (name === "src") {
+      const safeSrc = normalizeVideoEmbedSrc(attrValue);
+      return safeSrc ? `src="${escapeAttr(safeSrc)}"` : null;
+    }
+    if (name === "allow") {
+      return `allow="${VIDEO_IFRAME_ALLOW}"`;
+    }
+    if (name === "allowfullscreen") {
+      return `allowfullscreen="true"`;
+    }
+    if (name === "referrerpolicy") {
+      return `referrerpolicy="${VIDEO_IFRAME_REFERRER_POLICY}"`;
+    }
+    if (name === "sandbox") {
+      return `sandbox="${VIDEO_IFRAME_SANDBOX}"`;
+    }
+    if (name === "loading") {
+      return `loading="lazy"`;
+    }
+    if (name === "style") return null;
+  }
+
   if (name === "href" || name === "src") {
     if (!isAllowedUrl(attrValue)) return null;
   }
@@ -136,8 +168,8 @@ export function sanitizeHtml(html: string | null | undefined): string {
   let output = html
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<!doctype[\s\S]*?>/gi, "")
-    .replace(/<(script|style|iframe|object|embed|meta|link|svg|math)\b[\s\S]*?<\/\1>/gi, "")
-    .replace(/<(script|style|iframe|object|embed|meta|link|svg|math)\b[^>]*\/?>/gi, "");
+    .replace(/<(script|style|object|embed|meta|link|svg|math)\b[\s\S]*?<\/\1>/gi, "")
+    .replace(/<(script|style|object|embed|meta|link|svg|math)\b[^>]*\/?>/gi, "");
 
   output = output.replace(/<\/?([a-zA-Z0-9-]+)([^>]*)>/g, (raw, rawTagName: string, rawAttrs: string) => {
     const tagName = rawTagName.toLowerCase();
@@ -150,5 +182,5 @@ export function sanitizeHtml(html: string | null | undefined): string {
     return VOID_TAGS.has(tagName) ? `<${tagName}${attrs}>` : `<${tagName}${attrs}>`;
   });
 
-  return output;
+  return output.replace(/<iframe(?![^>]*\ssrc=)[^>]*>\s*<\/iframe>/gi, "");
 }

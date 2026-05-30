@@ -16,8 +16,16 @@ import {
   Outdent,
   Undo,
   Redo,
+  Video,
   X,
 } from "lucide-react";
+import {
+  parseVideoUrl,
+  type VideoEmbed,
+  VIDEO_IFRAME_ALLOW,
+  VIDEO_IFRAME_REFERRER_POLICY,
+  VIDEO_IFRAME_SANDBOX,
+} from "@contracts/video-embed";
 import { uploadImage } from "@/lib/upload";
 
 interface RichEditorProps {
@@ -56,6 +64,12 @@ export default function RichEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEmpty, setIsEmpty] = useState(!value || value === "<p><br></p>");
   const enterCleanupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
+  const videoUrlInputRef = useRef<HTMLInputElement>(null);
+  const [videoDialogOpen, setVideoDialogOpen] = useState(false);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoTitle, setVideoTitle] = useState("");
+  const [videoError, setVideoError] = useState("");
   // Image alignment toolbar state
   const [imgToolbar, setImgToolbar] = useState<{
     visible: boolean;
@@ -85,6 +99,12 @@ export default function RichEditor({
     };
   }, []);
 
+  useEffect(() => {
+    if (!videoDialogOpen) return;
+    const timer = window.setTimeout(() => videoUrlInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [videoDialogOpen]);
+
   const handleInput = () => {
     const el = editorRef.current;
     if (!el) return;
@@ -93,6 +113,77 @@ export default function RichEditor({
     setIsEmpty(empty);
     onChange(html);
   };
+
+  const saveSelection = useCallback(() => {
+    const el = editorRef.current;
+    const selection = window.getSelection();
+    if (!el || !selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    if (el.contains(range.commonAncestorContainer)) {
+      savedRangeRef.current = range.cloneRange();
+    }
+  }, []);
+
+  const openVideoDialog = useCallback(() => {
+    saveSelection();
+    setVideoUrl("");
+    setVideoTitle("");
+    setVideoError("");
+    setVideoDialogOpen(true);
+  }, [saveSelection]);
+
+  const closeVideoDialog = useCallback(() => {
+    setVideoDialogOpen(false);
+    setVideoError("");
+  }, []);
+
+  const insertBlockAfterSelection = useCallback((block: HTMLElement) => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    el.focus();
+    const selection = window.getSelection();
+    if (selection && savedRangeRef.current) {
+      selection.removeAllRanges();
+      selection.addRange(savedRangeRef.current.cloneRange());
+    }
+
+    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    const currentBlock = getCurrentBlock();
+    const newP = document.createElement("p");
+    newP.innerHTML = "<br>";
+
+    if (currentBlock && el.contains(currentBlock) && currentBlock.tagName.toLowerCase() !== "figure") {
+      currentBlock.parentNode?.insertBefore(block, currentBlock.nextSibling);
+      block.parentNode?.insertBefore(newP, block.nextSibling);
+    } else if (range && el.contains(range.commonAncestorContainer)) {
+      range.deleteContents();
+      range.insertNode(newP);
+      range.insertNode(block);
+    } else {
+      el.appendChild(block);
+      el.appendChild(newP);
+    }
+
+    const newRange = document.createRange();
+    newRange.setStart(newP, 0);
+    newRange.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(newRange);
+    savedRangeRef.current = null;
+  }, []);
+
+  const insertVideoFromDialog = useCallback(() => {
+    const video = parseVideoUrl(videoUrl, videoTitle);
+    if (!video) {
+      setVideoError("暂只支持哔哩哔哩和腾讯视频的完整视频页链接或官方播放器链接。");
+      return;
+    }
+
+    insertBlockAfterSelection(createVideoFigure(video));
+    handleInput();
+    closeVideoDialog();
+  }, [closeVideoDialog, insertBlockAfterSelection, videoTitle, videoUrl]);
 
   const execCmd = useCallback((command: string, valueArg: string = "") => {
     document.execCommand(command, false, valueArg);
@@ -114,6 +205,7 @@ export default function RichEditor({
         // Remove any divs that were created, replace with p
         const divs = el.querySelectorAll("div");
         divs.forEach((div) => {
+          if (div.closest("figure") || div.classList.contains("video-embed-frame")) return;
           const p = document.createElement("p");
           p.innerHTML = div.innerHTML;
           div.parentNode?.replaceChild(p, div);
@@ -358,6 +450,9 @@ export default function RichEditor({
         <ToolbarButton onClick={insertLink} title="插入链接">
           <LinkIcon className="h-4 w-4" />
         </ToolbarButton>
+        <ToolbarButton onClick={openVideoDialog} title="插入视频">
+          <Video className="h-4 w-4" />
+        </ToolbarButton>
         <ToolbarDivider />
         <ToolbarButton onClick={() => execCmd("undo")} title="撤销">
           <Undo className="h-4 w-4" />
@@ -387,6 +482,72 @@ export default function RichEditor({
           onChange={handleFileChange}
         />
       </div>
+
+      {videoDialogOpen && (
+        <div className="border-b bg-white px-4 py-3">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_auto] md:items-end">
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+              视频链接
+              <input
+                ref={videoUrlInputRef}
+                type="url"
+                value={videoUrl}
+                onChange={(e) => {
+                  setVideoUrl(e.target.value);
+                  setVideoError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    insertVideoFromDialog();
+                  }
+                  if (e.key === "Escape") {
+                    closeVideoDialog();
+                  }
+                }}
+                className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                placeholder="粘贴哔哩哔哩或腾讯视频链接"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+              标题
+              <input
+                type="text"
+                value={videoTitle}
+                onChange={(e) => setVideoTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    insertVideoFromDialog();
+                  }
+                  if (e.key === "Escape") {
+                    closeVideoDialog();
+                  }
+                }}
+                className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                placeholder="可选"
+              />
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={insertVideoFromDialog}
+                className="h-9 rounded-md bg-sky-600 px-3 text-sm font-medium text-white transition-colors hover:bg-sky-700"
+              >
+                插入
+              </button>
+              <button
+                type="button"
+                onClick={closeVideoDialog}
+                className="h-9 rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+          {videoError && <p className="mt-2 text-sm text-red-600">{videoError}</p>}
+        </div>
+      )}
 
       {/* Editor */}
       <div className="relative">
@@ -473,6 +634,7 @@ function ToolbarButton({
   return (
     <button
       type="button"
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -507,5 +669,36 @@ function createImageFigure(url: string): HTMLElement {
   img.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
 
   figure.appendChild(img);
+  return figure;
+}
+
+function createVideoFigure(video: VideoEmbed): HTMLElement {
+  const figure = document.createElement("figure");
+  figure.className = "video-embed";
+  figure.contentEditable = "false";
+
+  const frame = document.createElement("div");
+  frame.className = "video-embed-frame";
+
+  const iframe = document.createElement("iframe");
+  iframe.src = video.embedSrc;
+  iframe.title = video.title;
+  iframe.loading = "lazy";
+  iframe.allow = VIDEO_IFRAME_ALLOW;
+  iframe.setAttribute("allowfullscreen", "true");
+  iframe.referrerPolicy = VIDEO_IFRAME_REFERRER_POLICY;
+  iframe.setAttribute("sandbox", VIDEO_IFRAME_SANDBOX);
+
+  const caption = document.createElement("figcaption");
+  const link = document.createElement("a");
+  link.href = video.originalUrl;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = video.title;
+
+  frame.appendChild(iframe);
+  caption.appendChild(link);
+  figure.appendChild(frame);
+  figure.appendChild(caption);
   return figure;
 }

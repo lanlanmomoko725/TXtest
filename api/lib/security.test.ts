@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { User } from "@db/schema";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
+import { parseVideoUrl } from "@contracts/video-embed";
 import { detectImageFormat, extensionForFormat } from "./upload-validation";
 import { toAdminUser, toCurrentUser, toPublicUser } from "./user-dto";
 
@@ -54,6 +55,64 @@ describe("HTML sanitizer", () => {
     expect(html).toContain("<figure");
     expect(html).toContain('src="/uploads/a.jpg"');
     expect(html).toContain("text-align: center");
+  });
+
+  it("keeps whitelisted video iframes and forces safe iframe attributes", () => {
+    const html = sanitizeHtml(
+      '<figure class="video-embed"><div class="video-embed-frame"><iframe src="https://player.bilibili.com/player.html?bvid=BV1xx411c7mD" onload="alert(1)" sandbox="allow-forms" allow="camera" allowfullscreen="false" referrerpolicy="unsafe-url" loading="eager"></iframe></div><figcaption><a href="https://www.bilibili.com/video/BV1xx411c7mD" target="_blank">title</a></figcaption></figure>',
+    );
+
+    expect(html).toContain('class="video-embed"');
+    expect(html).toContain('src="https://player.bilibili.com/player.html?');
+    expect(html).toContain("bvid=BV1xx411c7mD");
+    expect(html).toContain("autoplay=0");
+    expect(html).toContain('allow="fullscreen; autoplay; encrypted-media; picture-in-picture"');
+    expect(html).toContain('sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"');
+    expect(html).toContain('referrerpolicy="no-referrer-when-downgrade"');
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('allowfullscreen="true"');
+    expect(html).not.toContain("onload");
+    expect(html).not.toContain("allow-forms");
+    expect(html).not.toContain("camera");
+  });
+
+  it("removes unknown iframe sources", () => {
+    const html = sanitizeHtml('<iframe src="https://example.com/embed" onerror="alert(1)"></iframe>');
+
+    expect(html).not.toContain("https://example.com/embed");
+    expect(html).not.toContain("onerror");
+  });
+});
+
+describe("video URL parser", () => {
+  it("builds a Bilibili player URL from a standard video page", () => {
+    const video = parseVideoUrl("https://www.bilibili.com/video/BV1xx411c7mD/?p=2", "测试视频");
+
+    expect(video).toMatchObject({
+      platform: "bilibili",
+      title: "测试视频",
+      originalUrl: "https://www.bilibili.com/video/BV1xx411c7mD/?p=2",
+    });
+    expect(video?.embedSrc).toContain("https://player.bilibili.com/player.html?");
+    expect(video?.embedSrc).toContain("bvid=BV1xx411c7mD");
+    expect(video?.embedSrc).toContain("page=2");
+  });
+
+  it("builds a Tencent player URL from a standard video page", () => {
+    const video = parseVideoUrl("https://v.qq.com/x/page/m1234567890.html");
+
+    expect(video).toMatchObject({
+      platform: "tencent",
+      title: "腾讯视频",
+      embedSrc: "https://v.qq.com/txp/iframe/player.html?vid=m1234567890",
+      originalUrl: "https://v.qq.com/x/page/m1234567890.html",
+    });
+  });
+
+  it("rejects unsafe and unsupported URLs", () => {
+    expect(parseVideoUrl("javascript:alert(1)")).toBeNull();
+    expect(parseVideoUrl("https://b23.tv/abc")).toBeNull();
+    expect(parseVideoUrl("https://example.com/video/1")).toBeNull();
   });
 });
 

@@ -9,10 +9,12 @@ import CreatePost from "./pages/CreatePost"
 import Profile from "./pages/Profile"
 import Featured from "./pages/Featured"
 import WeeklySky from "./pages/WeeklySky"
+import Activities from "./pages/Activities"
 import SkyExplanation from "./pages/SkyExplanation"
 import SkyEvents from "./pages/SkyEvents"
 import SkyGallery from "./pages/SkyGallery"
 import AboutUs from "./pages/AboutUs"
+import JoinUs from "./pages/JoinUs"
 import TagPosts from "./pages/TagPosts"
 import SearchPage from "./pages/Search"
 import AdminUsers from "./pages/admin/Users"
@@ -47,9 +49,11 @@ export default function App() {
         <Route path="/featured" element={<Featured />} />
         <Route path="/weekly-sky" element={<WeeklySky />} />
         <Route path="/sky-events" element={<SkyEvents />} />
+        <Route path="/activities" element={<Activities />} />
         <Route path="/sky-gallery" element={<SkyGallery />} />
         <Route path="/sky-explanation" element={<SkyExplanation />} />
         <Route path="/about" element={<AboutUs />} />
+        <Route path="/join-us" element={<JoinUs />} />
         <Route path="/tag/:tag" element={<TagPosts />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/admin/users" element={<AdminUsers />} />

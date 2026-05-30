@@ -1,13 +1,15 @@
 import { Link } from "react-router";
-import { Cloud, Heart, ArrowUpRight } from "lucide-react";
+import { Heart, ArrowUpRight } from "lucide-react";
 import { SKY_CATEGORIES } from "@contracts/constants";
 
 const quickLinks = [
-  { to: "/", label: "首页" },
   { to: "/sky-gallery", label: "天空图鉴" },
-  { to: "/weekly-sky", label: "每周天象" },
+  { to: "/sky-explanation", label: "天象解说图" },
+  { to: "/weekly-sky", label: "每周一图" },
   { to: "/sky-events", label: "实时天象" },
-  { to: "/about", label: "关于我们" },
+  { to: "/activities", label: "组织活动" },
+  { to: "/about", label: "我们是谁" },
+  { to: "/join-us", label: "加入我们" },
 ];
 
 export default function Footer() {
@@ -20,8 +22,9 @@ export default function Footer() {
             <Link
               to="/"
               className="inline-flex items-center gap-2 text-lg font-bold text-foreground transition-opacity hover:opacity-80 focus-visible:rounded-lg"
+              aria-label="返回首页"
             >
-              <Cloud className="h-5 w-5 text-primary" />
+              <img src="/logo.png" alt="天象志" width={28} height={28} className="h-7 w-7 rounded-full object-contain" />
               <span>天象志</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -81,7 +84,7 @@ export default function Footer() {
           </p>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <Link to="/about" className="hover:text-foreground transition-colors">
-              关于我们
+              我们是谁
             </Link>
             <span className="text-border">·</span>
             <Link to="/" className="hover:text-foreground transition-colors">

@@ -49,7 +49,7 @@ export default function AboutUs() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4 max-w-5xl mx-auto">
           <Link to="/" className="hover:text-primary">首页</Link>
           <span>/</span>
-          <span className="text-foreground font-medium">关于我们</span>
+          <span className="text-foreground font-medium">我们是谁</span>
         </div>
 
         {/* Header */}
@@ -58,7 +58,7 @@ export default function AboutUs() {
             <Link to="/" className="p-2 rounded-full hover:bg-muted transition-colors">
               <ArrowLeft className="h-5 w-5 text-muted-foreground" />
             </Link>
-            <h1 className="text-2xl font-bold text-foreground">关于我们</h1>
+            <h1 className="text-2xl font-bold text-foreground">我们是谁</h1>
           </div>
           {isAdmin && !isEditing && (
             <Button size="sm" variant="outline" onClick={handleStartEdit}>
@@ -91,7 +91,7 @@ export default function AboutUs() {
               <RichEditor
                 value={editContent}
                 onChange={setEditContent}
-                placeholder="输入关于我们的内容，支持富文本编辑，可在任意位置插入图片..."
+                placeholder="输入我们是谁的内容，支持富文本编辑，可在任意位置插入图片..."
                 minHeight="500px"
               />
               {updateMutation.error && (

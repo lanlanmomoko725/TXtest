@@ -17,8 +17,8 @@ import {
 import {
   SKY_CATEGORIES,
   REGIONS,
-  SKY_GALLERY_CATEGORIES,
 } from "@contracts/constants";
+import type { SkyCategory } from "@contracts/constants";
 import { LOGIN_PATH } from "@/const";
 import RichEditor from "@/components/RichEditor";
 import { Cloud, PenLine, ImagePlus, Loader2, MapPin, Send, X, Upload, FileText, StickyNote, Check } from "lucide-react";
@@ -59,7 +59,7 @@ export default function CreatePost() {
   const [hasLocation, setHasLocation] = useState(false);
   const [region, setRegion] = useState("");
   const [isArticle, setIsArticle] = useState(false);
-  const [skyGalleryCategory, setSkyGalleryCategory] = useState("");
+  const [includeSkyGallery, setIncludeSkyGallery] = useState(false);
   const isAdmin = user?.role === "admin";
 
   const [imageUrls, setImageUrls] = useState<string[]>(() => {
@@ -117,7 +117,7 @@ export default function CreatePost() {
 
   const handleSubmit = () => {
     if (!title.trim() || !content.trim()) return;
-    if (!skyGalleryCategory && !category) return;
+    if (!category) return;
 
     const finalContent = isArticle
       ? content
@@ -142,12 +142,12 @@ export default function CreatePost() {
     createPost.mutate({
       title: finalTitle,
       content: finalContent,
-      category: (category || (skyGalleryCategory ? "other" : "")) as "cloud" | "halo" | "glory" | "rainbow" | "other",
+      category: category as SkyCategory,
       hasLocation,
       region: hasLocation ? region : undefined,
       images: finalImages.length > 0 ? finalImages : undefined,
       isArticle,
-      skyGalleryCategory: skyGalleryCategory || undefined,
+      skyGalleryCategory: isAdmin && includeSkyGallery ? category : undefined,
     });
   };
 
@@ -316,28 +316,24 @@ export default function CreatePost() {
             </div>
           </div>
 
-          {/* Sky Gallery Category (admin only) */}
+          {/* Sky Gallery switch (admin only) */}
           {isAdmin && (
-            <div>
-              <Label className="text-sm font-medium">天空图鉴分类（可选）</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-                {SKY_GALLERY_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setSkyGalleryCategory(skyGalleryCategory === cat ? "" : cat)}
-                    className={`relative py-2.5 px-3 rounded-xl border text-sm font-medium transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring ${
-                      skyGalleryCategory === cat
-                        ? "border-purple-500 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-400 shadow-soft"
-                        : "border-border/60 hover:border-purple-300 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {skyGalleryCategory === cat && (
-                      <Check className="absolute top-1.5 right-1.5 h-3 w-3 text-purple-500" />
-                    )}
-                    {cat}
-                  </button>
-                ))}
+            <div className="rounded-xl border border-border/60 bg-card/60 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="sky-gallery" className="cursor-pointer text-sm font-medium">
+                    天空图鉴
+                  </Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    打开后，内容会进入天空图鉴中所选的分类；关闭则进入实时天象。
+                  </p>
+                </div>
+                <Switch
+                  id="sky-gallery"
+                  checked={includeSkyGallery}
+                  onCheckedChange={setIncludeSkyGallery}
+                  disabled={!category}
+                />
               </div>
             </div>
           )}
@@ -443,7 +439,7 @@ export default function CreatePost() {
               disabled={
                 createPost.isPending ||
                 !content.trim() ||
-                (!skyGalleryCategory && !category) ||
+                !category ||
                 (hasLocation && !region)
               }
               className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"

@@ -66,7 +66,7 @@ export const posts = mysqlTable("posts", {
   title: varchar("title", { length: 255 }).notNull(),
   content: text("content").notNull(),
   authorId: bigint("authorId", { mode: "number", unsigned: true }).notNull(),
-  category: mysqlEnum("category", ["cloud", "halo", "glory", "rainbow", "other"]).notNull(),
+  category: mysqlEnum("category", ["cloud_types", "rainbow", "glory", "ice_halo", "mirage", "lightning", "sky_color"]).notNull(),
   region: varchar("region", { length: 50 }),
   hasLocation: boolean("hasLocation").default(false).notNull(),
   images: json("images").$type<string[] | null>(),

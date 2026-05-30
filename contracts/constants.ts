@@ -14,12 +14,24 @@ export const Paths = {
   login: "/login",
 } as const;
 
+export const SKY_CATEGORY_IDS = [
+  "cloud_types",
+  "rainbow",
+  "glory",
+  "ice_halo",
+  "mirage",
+  "lightning",
+  "sky_color",
+] as const;
+
 export const SKY_CATEGORIES = [
-  { id: "cloud", label: "云", description: "积云、层云、卷云、积雨云等各种云状" },
-  { id: "halo", label: "晕", description: "日晕、月晕、幻日、幻月等光学现象" },
-  { id: "glory", label: "华", description: "日华、月华、彩云等衍射现象" },
-  { id: "rainbow", label: "虹", description: "彩虹、双彩虹、月虹等折射现象" },
-  { id: "other", label: "其它天象", description: "极光、流星雨、彗星、奇云等特殊天象" },
+  { id: "cloud_types", label: "云的种类", description: "积云、层云、卷云、积雨云等各种云状" },
+  { id: "rainbow", label: "彩虹类", description: "彩虹、双彩虹、月虹等折射现象" },
+  { id: "glory", label: "宝光类", description: "宝光、华、彩云等衍射现象" },
+  { id: "ice_halo", label: "冰晕类", description: "日晕、月晕、幻日、幻月等冰晶光学现象" },
+  { id: "mirage", label: "蜃景类", description: "海市蜃楼、上现蜃景、下现蜃景等折射现象" },
+  { id: "lightning", label: "电光类", description: "闪电、雷暴、红色精灵等大气电现象" },
+  { id: "sky_color", label: "天空的色彩与光影", description: "朝霞、晚霞、暮光、反曙暮光等天空光影" },
 ] as const;
 
 export type SkyCategory = (typeof SKY_CATEGORIES)[number]["id"];
@@ -63,11 +75,13 @@ export const REGIONS = [
 export type Region = (typeof REGIONS)[number];
 
 export const CATEGORY_LABEL_MAP: Record<SkyCategory, string> = {
-  cloud: "云",
-  halo: "晕",
-  glory: "华",
-  rainbow: "虹",
-  other: "其它天象",
+  cloud_types: "云的种类",
+  rainbow: "彩虹类",
+  glory: "宝光类",
+  ice_halo: "冰晕类",
+  mirage: "蜃景类",
+  lightning: "电光类",
+  sky_color: "天空的色彩与光影",
 };
 
 export const SKY_GALLERY_CATEGORIES = [

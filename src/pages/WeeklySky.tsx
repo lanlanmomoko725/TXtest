@@ -71,7 +71,7 @@ export default function WeeklySky() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
           <Link to="/" className="hover:text-primary">首页</Link>
           <span>/</span>
-          <span className="text-foreground font-medium">每周天象</span>
+          <span className="text-foreground font-medium">每周一图</span>
         </div>
 
         {/* Header */}
@@ -80,7 +80,7 @@ export default function WeeklySky() {
             <Link to="/" className="p-2 rounded-full hover:bg-muted transition-colors">
               <ArrowLeft className="h-5 w-5 text-muted-foreground" />
             </Link>
-            <h1 className="text-2xl font-bold text-foreground">每周天象</h1>
+            <h1 className="text-2xl font-bold text-foreground">每周一图</h1>
           </div>
           {isAdmin && !isEditing && (
             <Button size="sm" variant="outline" onClick={handleStartEdit}>
@@ -172,7 +172,7 @@ export default function WeeklySky() {
                 <div className="w-full rounded-xl overflow-hidden flex items-center justify-center">
                   <img
                     src={weeklySky.image}
-                    alt={weeklySky.title || "每周天象"}
+                    alt={weeklySky.title || "每周一图"}
                     className="max-w-full max-h-[85vh] w-auto h-auto object-contain"
                   />
                 </div>
@@ -184,7 +184,7 @@ export default function WeeklySky() {
 
               {/* Title */}
               <h2 className="text-2xl md:text-3xl font-bold text-foreground text-center">
-                {weeklySky?.title || "每周天象"}
+                {weeklySky?.title || "每周一图"}
               </h2>
 
               {/* Content */}
