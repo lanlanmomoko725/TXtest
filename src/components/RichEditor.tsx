@@ -20,10 +20,9 @@ import {
   X,
 } from "lucide-react";
 import {
+  BILIBILI_IFRAME_ATTRS,
   parseVideoUrl,
   type VideoEmbed,
-  VIDEO_IFRAME_ALLOW,
-  VIDEO_IFRAME_REFERRER_POLICY,
 } from "@contracts/video-embed";
 import { uploadImage } from "@/lib/upload";
 
@@ -175,7 +174,7 @@ export default function RichEditor({
   const insertVideoFromDialog = useCallback(() => {
     const video = parseVideoUrl(videoUrl, videoTitle);
     if (!video) {
-      setVideoError("暂只支持哔哩哔哩和腾讯视频的完整视频页链接或官方播放器链接。");
+      setVideoError("请粘贴哔哩哔哩完整视频页链接或官方播放器链接；暂不支持 b23.tv 短链。");
       return;
     }
 
@@ -505,7 +504,7 @@ export default function RichEditor({
                   }
                 }}
                 className="h-9 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                placeholder="粘贴哔哩哔哩或腾讯视频链接"
+                placeholder="粘贴哔哩哔哩视频页链接"
               />
             </label>
             <label className="grid gap-1.5 text-sm font-medium text-slate-700">
@@ -682,10 +681,12 @@ function createVideoFigure(video: VideoEmbed): HTMLElement {
   const iframe = document.createElement("iframe");
   iframe.src = video.embedSrc;
   iframe.title = video.title;
-  iframe.loading = "lazy";
-  iframe.allow = VIDEO_IFRAME_ALLOW;
-  iframe.setAttribute("allowfullscreen", "true");
-  iframe.referrerPolicy = VIDEO_IFRAME_REFERRER_POLICY;
+  iframe.setAttribute("scrolling", BILIBILI_IFRAME_ATTRS.scrolling);
+  iframe.setAttribute("border", BILIBILI_IFRAME_ATTRS.border);
+  iframe.setAttribute("frameborder", BILIBILI_IFRAME_ATTRS.frameborder);
+  iframe.setAttribute("framespacing", BILIBILI_IFRAME_ATTRS.framespacing);
+  iframe.setAttribute("allowfullscreen", BILIBILI_IFRAME_ATTRS.allowfullscreen);
+  iframe.loading = BILIBILI_IFRAME_ATTRS.loading;
 
   const caption = document.createElement("figcaption");
   const link = document.createElement("a");

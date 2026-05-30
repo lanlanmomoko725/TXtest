@@ -1,4 +1,4 @@
-export type VideoPlatform = "bilibili" | "tencent";
+export type VideoPlatform = "bilibili";
 
 export interface VideoEmbed {
   platform: VideoPlatform;
@@ -7,24 +7,24 @@ export interface VideoEmbed {
   title: string;
 }
 
-export const VIDEO_IFRAME_ALLOW = "fullscreen; autoplay; encrypted-media; picture-in-picture";
-export const VIDEO_IFRAME_REFERRER_POLICY = "no-referrer-when-downgrade";
+export const BILIBILI_IFRAME_ATTRS = {
+  scrolling: "no",
+  border: "0",
+  frameborder: "no",
+  framespacing: "0",
+  allowfullscreen: "true",
+  loading: "lazy",
+} as const;
 
 const BILIBILI_BVID_RE = /^BV[a-zA-Z0-9]+$/;
 const BILIBILI_AID_RE = /^(?:av)?(\d+)$/i;
-const TENCENT_VID_RE = /^[a-zA-Z0-9]{6,64}$/;
 const BILIBILI_DEFAULT_TITLE = "\u54d4\u54e9\u54d4\u54e9\u89c6\u9891";
-const TENCENT_DEFAULT_TITLE = "\u817e\u8baf\u89c6\u9891";
 
 export function parseVideoUrl(rawInput: string, rawTitle = ""): VideoEmbed | null {
   const input = extractVideoInput(rawInput);
   if (!input) return null;
 
-  const title = rawTitle.trim() || input.titleHint;
-  const bilibili = parseBilibiliUrl(input.url, title);
-  if (bilibili) return bilibili;
-
-  return parseTencentUrl(input.url, title);
+  return parseBilibiliUrl(input.url, rawTitle.trim() || input.titleHint);
 }
 
 export function isAllowedVideoEmbedSrc(rawSrc: string): boolean {
@@ -36,15 +36,8 @@ export function normalizeVideoEmbedSrc(rawSrc: string): string | null {
   if (!url || url.protocol !== "https:") return null;
 
   const host = normalizeHost(url.hostname);
-  if (host === "player.bilibili.com") {
-    return normalizePath(url.pathname) === "/player.html" ? buildBilibiliEmbed(url.searchParams) : null;
-  }
-  if (host === "v.qq.com") {
-    if (normalizePath(url.pathname) !== "/txp/iframe/player.html") return null;
-    const vid = url.searchParams.get("vid");
-    return vid && TENCENT_VID_RE.test(vid) ? buildTencentEmbed(vid) : null;
-  }
-  return null;
+  if (host !== "player.bilibili.com") return null;
+  return normalizePath(url.pathname) === "/player.html" ? buildBilibiliEmbed(url.searchParams) : null;
 }
 
 function parseBilibiliUrl(url: URL, rawTitle: string): VideoEmbed | null {
@@ -92,30 +85,6 @@ function parseBilibiliUrl(url: URL, rawTitle: string): VideoEmbed | null {
   };
 }
 
-function parseTencentUrl(url: URL, rawTitle: string): VideoEmbed | null {
-  const host = normalizeHost(url.hostname);
-  if (host !== "v.qq.com") return null;
-
-  const path = normalizePath(url.pathname);
-  let vid: string | null = null;
-
-  if (path === "/txp/iframe/player.html") {
-    vid = url.searchParams.get("vid");
-  } else {
-    vid = path.match(/^\/x\/page\/([a-zA-Z0-9]+)\.html$/)?.[1] ?? null;
-    vid ??= path.match(/^\/x\/cover\/[^/]+\/([a-zA-Z0-9]+)\.html$/)?.[1] ?? null;
-  }
-
-  if (!vid || !TENCENT_VID_RE.test(vid)) return null;
-
-  return {
-    platform: "tencent",
-    embedSrc: buildTencentEmbed(vid),
-    originalUrl: path === "/txp/iframe/player.html" ? `https://v.qq.com/x/page/${vid}.html` : toHttpsUrl(url),
-    title: normalizeVideoTitle(rawTitle, TENCENT_DEFAULT_TITLE),
-  };
-}
-
 function buildBilibiliEmbed(params: URLSearchParams): string | null {
   const output = new URLSearchParams();
   const bvid = params.get("bvid");
@@ -133,17 +102,9 @@ function buildBilibiliEmbed(params: URLSearchParams): string | null {
   return hasVideoId ? `https://player.bilibili.com/player.html?${output.toString()}` : null;
 }
 
-function buildTencentEmbed(vid: string): string {
-  const params = new URLSearchParams();
-  params.set("vid", vid);
-  params.set("auto", "0");
-  return `https://v.qq.com/txp/iframe/player.html?${params.toString()}`;
-}
-
 function addBilibiliPlayerDefaults(params: URLSearchParams): void {
   params.set("autoplay", "0");
   params.set("danmaku", "0");
-  params.set("isOutside", "true");
 }
 
 function extractVideoInput(rawInput: string): { url: URL; titleHint: string } | null {

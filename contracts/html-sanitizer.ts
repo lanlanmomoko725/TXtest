@@ -1,7 +1,6 @@
 import {
+  BILIBILI_IFRAME_ATTRS,
   normalizeVideoEmbedSrc,
-  VIDEO_IFRAME_ALLOW,
-  VIDEO_IFRAME_REFERRER_POLICY,
 } from "./video-embed";
 
 const ALLOWED_TAGS = new Set([
@@ -31,7 +30,7 @@ const VOID_TAGS = new Set(["br", "img"]);
 const GLOBAL_ATTRS = new Set(["class", "style", "title"]);
 const ATTRS_BY_TAG: Record<string, Set<string>> = {
   a: new Set(["href", "target", "rel"]),
-  iframe: new Set(["src", "allow", "allowfullscreen", "referrerpolicy", "loading"]),
+  iframe: new Set(["src", "scrolling", "border", "frameborder", "framespacing", "allowfullscreen", "loading"]),
   img: new Set(["src", "alt", "loading"]),
 };
 
@@ -99,17 +98,23 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
       const safeSrc = normalizeVideoEmbedSrc(attrValue);
       return safeSrc ? `src="${escapeAttr(safeSrc)}"` : null;
     }
-    if (name === "allow") {
-      return `allow="${VIDEO_IFRAME_ALLOW}"`;
+    if (name === "scrolling") {
+      return `scrolling="${BILIBILI_IFRAME_ATTRS.scrolling}"`;
+    }
+    if (name === "border") {
+      return `border="${BILIBILI_IFRAME_ATTRS.border}"`;
+    }
+    if (name === "frameborder") {
+      return `frameborder="${BILIBILI_IFRAME_ATTRS.frameborder}"`;
+    }
+    if (name === "framespacing") {
+      return `framespacing="${BILIBILI_IFRAME_ATTRS.framespacing}"`;
     }
     if (name === "allowfullscreen") {
-      return `allowfullscreen="true"`;
-    }
-    if (name === "referrerpolicy") {
-      return `referrerpolicy="${VIDEO_IFRAME_REFERRER_POLICY}"`;
+      return `allowfullscreen="${BILIBILI_IFRAME_ATTRS.allowfullscreen}"`;
     }
     if (name === "loading") {
-      return `loading="lazy"`;
+      return `loading="${BILIBILI_IFRAME_ATTRS.loading}"`;
     }
     if (name === "style") return null;
   }
@@ -162,12 +167,14 @@ function sanitizeAttrs(tagName: string, rawAttrs: string): string {
   }
 
   if (tagName === "iframe" && iframeAttrNames.has("src")) {
-    if (!iframeAttrNames.has("allow")) attrs.push(`allow="${VIDEO_IFRAME_ALLOW}"`);
-    if (!iframeAttrNames.has("allowfullscreen")) attrs.push(`allowfullscreen="true"`);
-    if (!iframeAttrNames.has("referrerpolicy")) {
-      attrs.push(`referrerpolicy="${VIDEO_IFRAME_REFERRER_POLICY}"`);
+    if (!iframeAttrNames.has("scrolling")) attrs.push(`scrolling="${BILIBILI_IFRAME_ATTRS.scrolling}"`);
+    if (!iframeAttrNames.has("border")) attrs.push(`border="${BILIBILI_IFRAME_ATTRS.border}"`);
+    if (!iframeAttrNames.has("frameborder")) attrs.push(`frameborder="${BILIBILI_IFRAME_ATTRS.frameborder}"`);
+    if (!iframeAttrNames.has("framespacing")) attrs.push(`framespacing="${BILIBILI_IFRAME_ATTRS.framespacing}"`);
+    if (!iframeAttrNames.has("allowfullscreen")) {
+      attrs.push(`allowfullscreen="${BILIBILI_IFRAME_ATTRS.allowfullscreen}"`);
     }
-    if (!iframeAttrNames.has("loading")) attrs.push(`loading="lazy"`);
+    if (!iframeAttrNames.has("loading")) attrs.push(`loading="${BILIBILI_IFRAME_ATTRS.loading}"`);
   }
   return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
 }
