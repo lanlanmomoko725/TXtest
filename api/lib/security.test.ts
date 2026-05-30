@@ -57,7 +57,7 @@ describe("HTML sanitizer", () => {
     expect(html).toContain("text-align: center");
   });
 
-  it("keeps whitelisted video iframes and forces safe iframe attributes", () => {
+  it("keeps whitelisted video iframes without sandbox and forces safe iframe attributes", () => {
     const html = sanitizeHtml(
       '<figure class="video-embed"><div class="video-embed-frame"><iframe src="https://player.bilibili.com/player.html?bvid=BV1xx411c7mD" onload="alert(1)" sandbox="allow-forms" allow="camera" allowfullscreen="false" referrerpolicy="unsafe-url" loading="eager"></iframe></div><figcaption><a href="https://www.bilibili.com/video/BV1xx411c7mD" target="_blank">title</a></figcaption></figure>',
     );
@@ -65,15 +65,31 @@ describe("HTML sanitizer", () => {
     expect(html).toContain('class="video-embed"');
     expect(html).toContain('src="https://player.bilibili.com/player.html?');
     expect(html).toContain("bvid=BV1xx411c7mD");
+    expect(html).toContain("p=1");
     expect(html).toContain("autoplay=0");
+    expect(html).toContain("danmaku=0");
+    expect(html).toContain("isOutside=true");
     expect(html).toContain('allow="fullscreen; autoplay; encrypted-media; picture-in-picture"');
-    expect(html).toContain('sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"');
     expect(html).toContain('referrerpolicy="no-referrer-when-downgrade"');
     expect(html).toContain('loading="lazy"');
     expect(html).toContain('allowfullscreen="true"');
     expect(html).not.toContain("onload");
+    expect(html).not.toContain("sandbox");
     expect(html).not.toContain("allow-forms");
     expect(html).not.toContain("camera");
+  });
+
+  it("adds safe iframe attributes when a whitelisted iframe omits them", () => {
+    const html = sanitizeHtml(
+      '<iframe src="https://v.qq.com/txp/iframe/player.html?vid=f3568ci7bm8"></iframe>',
+    );
+
+    expect(html).toContain('src="https://v.qq.com/txp/iframe/player.html?vid=f3568ci7bm8&amp;auto=0"');
+    expect(html).toContain('allow="fullscreen; autoplay; encrypted-media; picture-in-picture"');
+    expect(html).toContain('referrerpolicy="no-referrer-when-downgrade"');
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('allowfullscreen="true"');
+    expect(html).not.toContain("sandbox");
   });
 
   it("removes unknown iframe sources", () => {
@@ -86,16 +102,46 @@ describe("HTML sanitizer", () => {
 
 describe("video URL parser", () => {
   it("builds a Bilibili player URL from a standard video page", () => {
-    const video = parseVideoUrl("https://www.bilibili.com/video/BV1xx411c7mD/?p=2", "测试视频");
+    const video = parseVideoUrl("https://www.bilibili.com/video/BV1xx411c7mD/?p=2", "\u6d4b\u8bd5\u89c6\u9891");
 
     expect(video).toMatchObject({
       platform: "bilibili",
-      title: "测试视频",
+      title: "\u6d4b\u8bd5\u89c6\u9891",
       originalUrl: "https://www.bilibili.com/video/BV1xx411c7mD/?p=2",
     });
     expect(video?.embedSrc).toContain("https://player.bilibili.com/player.html?");
     expect(video?.embedSrc).toContain("bvid=BV1xx411c7mD");
-    expect(video?.embedSrc).toContain("page=2");
+    expect(video?.embedSrc).toContain("p=2");
+    expect(video?.embedSrc).toContain("autoplay=0");
+    expect(video?.embedSrc).toContain("danmaku=0");
+    expect(video?.embedSrc).toContain("isOutside=true");
+  });
+
+  it("extracts a Bilibili URL and title from shared text", () => {
+    const video = parseVideoUrl(
+      "\u3010\u3010\u5929\u8c61\u7231\u597d\u8005\u3011\u98ce\u66b4\u4e4b\u7f8e\u2014\u2014\u79d1\u5b66\u7684\u8ffd\u98ce\u9010\u96e8\u3011 https://www.bilibili.com/video/BV1v5411G7Ep/?share_source=copy_web&vd_source=eed6f6d8cd3b681920ae4aeb9e0863a3",
+    );
+
+    expect(video).toMatchObject({
+      platform: "bilibili",
+      title:
+        "\u3010\u5929\u8c61\u7231\u597d\u8005\u3011\u98ce\u66b4\u4e4b\u7f8e\u2014\u2014\u79d1\u5b66\u7684\u8ffd\u98ce\u9010\u96e8",
+      originalUrl:
+        "https://www.bilibili.com/video/BV1v5411G7Ep/?share_source=copy_web&vd_source=eed6f6d8cd3b681920ae4aeb9e0863a3",
+    });
+    expect(video?.embedSrc).toContain("bvid=BV1v5411G7Ep");
+    expect(video?.embedSrc).toContain("p=1");
+  });
+
+  it("builds a Bilibili player URL from an address-bar URL with tracking params", () => {
+    const video = parseVideoUrl(
+      "https://www.bilibili.com/video/BV1v5411G7Ep/?spm_id_from=333.1387.homepage.video_card.click&vd_source=80b709eddb9b8fd141d4f1524674bdec",
+    );
+
+    expect(video?.embedSrc).toContain("bvid=BV1v5411G7Ep");
+    expect(video?.embedSrc).toContain("p=1");
+    expect(video?.embedSrc).not.toContain("spm_id_from");
+    expect(video?.embedSrc).not.toContain("vd_source");
   });
 
   it("builds a Tencent player URL from a standard video page", () => {
@@ -103,10 +149,19 @@ describe("video URL parser", () => {
 
     expect(video).toMatchObject({
       platform: "tencent",
-      title: "腾讯视频",
-      embedSrc: "https://v.qq.com/txp/iframe/player.html?vid=m1234567890",
+      title: "\u817e\u8baf\u89c6\u9891",
+      embedSrc: "https://v.qq.com/txp/iframe/player.html?vid=m1234567890&auto=0",
       originalUrl: "https://v.qq.com/x/page/m1234567890.html",
     });
+  });
+
+  it("builds Tencent player URLs from cover and shared page URLs", () => {
+    expect(parseVideoUrl("https://v.qq.com/x/cover/mzc00200c2gydkd/o4102l8tb51.html")?.embedSrc).toBe(
+      "https://v.qq.com/txp/iframe/player.html?vid=o4102l8tb51&auto=0",
+    );
+    expect(parseVideoUrl("https://v.qq.com/x/page/f3568ci7bm8.html?url_from=share")?.embedSrc).toBe(
+      "https://v.qq.com/txp/iframe/player.html?vid=f3568ci7bm8&auto=0",
+    );
   });
 
   it("rejects unsafe and unsupported URLs", () => {

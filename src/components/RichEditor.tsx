@@ -24,7 +24,6 @@ import {
   type VideoEmbed,
   VIDEO_IFRAME_ALLOW,
   VIDEO_IFRAME_REFERRER_POLICY,
-  VIDEO_IFRAME_SANDBOX,
 } from "@contracts/video-embed";
 import { uploadImage } from "@/lib/upload";
 
@@ -687,7 +686,6 @@ function createVideoFigure(video: VideoEmbed): HTMLElement {
   iframe.allow = VIDEO_IFRAME_ALLOW;
   iframe.setAttribute("allowfullscreen", "true");
   iframe.referrerPolicy = VIDEO_IFRAME_REFERRER_POLICY;
-  iframe.setAttribute("sandbox", VIDEO_IFRAME_SANDBOX);
 
   const caption = document.createElement("figcaption");
   const link = document.createElement("a");

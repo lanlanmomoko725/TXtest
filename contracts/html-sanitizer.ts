@@ -2,7 +2,6 @@ import {
   normalizeVideoEmbedSrc,
   VIDEO_IFRAME_ALLOW,
   VIDEO_IFRAME_REFERRER_POLICY,
-  VIDEO_IFRAME_SANDBOX,
 } from "./video-embed";
 
 const ALLOWED_TAGS = new Set([
@@ -32,7 +31,7 @@ const VOID_TAGS = new Set(["br", "img"]);
 const GLOBAL_ATTRS = new Set(["class", "style", "title"]);
 const ATTRS_BY_TAG: Record<string, Set<string>> = {
   a: new Set(["href", "target", "rel"]),
-  iframe: new Set(["src", "allow", "allowfullscreen", "referrerpolicy", "sandbox", "loading"]),
+  iframe: new Set(["src", "allow", "allowfullscreen", "referrerpolicy", "loading"]),
   img: new Set(["src", "alt", "loading"]),
 };
 
@@ -109,9 +108,6 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
     if (name === "referrerpolicy") {
       return `referrerpolicy="${VIDEO_IFRAME_REFERRER_POLICY}"`;
     }
-    if (name === "sandbox") {
-      return `sandbox="${VIDEO_IFRAME_SANDBOX}"`;
-    }
     if (name === "loading") {
       return `loading="lazy"`;
     }
@@ -152,12 +148,26 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
 
 function sanitizeAttrs(tagName: string, rawAttrs: string): string {
   const attrs: string[] = [];
+  const iframeAttrNames = new Set<string>();
   const attrRegex = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+)/g;
   let match: RegExpExecArray | null;
   while ((match = attrRegex.exec(rawAttrs)) !== null) {
+    const attrName = match[1].toLowerCase();
     const value = match[2].replace(/^["']|["']$/g, "");
-    const safeAttr = sanitizeAttr(tagName, match[1], value);
-    if (safeAttr) attrs.push(safeAttr);
+    const safeAttr = sanitizeAttr(tagName, attrName, value);
+    if (safeAttr) {
+      attrs.push(safeAttr);
+      if (tagName === "iframe") iframeAttrNames.add(attrName);
+    }
+  }
+
+  if (tagName === "iframe" && iframeAttrNames.has("src")) {
+    if (!iframeAttrNames.has("allow")) attrs.push(`allow="${VIDEO_IFRAME_ALLOW}"`);
+    if (!iframeAttrNames.has("allowfullscreen")) attrs.push(`allowfullscreen="true"`);
+    if (!iframeAttrNames.has("referrerpolicy")) {
+      attrs.push(`referrerpolicy="${VIDEO_IFRAME_REFERRER_POLICY}"`);
+    }
+    if (!iframeAttrNames.has("loading")) attrs.push(`loading="lazy"`);
   }
   return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
 }
