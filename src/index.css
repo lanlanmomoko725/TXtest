@@ -107,10 +107,21 @@
   }
 }
 
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Stagger entrance animation utilities */
 @layer utilities {
   .stagger-children > * {
-    opacity: 0;
+    opacity: 1;
     animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
@@ -228,7 +239,7 @@
   /* Article content display styles */
   .article-content p {
     margin-bottom: 0.75em;
-    line-height: 1.75;
+    line-height: 1.625;
   }
   .article-content h2 {
     font-size: 1.5em;
