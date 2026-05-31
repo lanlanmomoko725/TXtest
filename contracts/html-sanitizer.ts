@@ -30,7 +30,17 @@ const VOID_TAGS = new Set(["br", "img"]);
 const GLOBAL_ATTRS = new Set(["class", "style", "title"]);
 const ATTRS_BY_TAG: Record<string, Set<string>> = {
   a: new Set(["href", "target", "rel"]),
-  iframe: new Set(["src", "scrolling", "border", "frameborder", "framespacing", "allowfullscreen", "loading"]),
+  iframe: new Set([
+    "src",
+    "scrolling",
+    "border",
+    "frameborder",
+    "framespacing",
+    "allowfullscreen",
+    "loading",
+    "referrerpolicy",
+    "sandbox",
+  ]),
   img: new Set(["src", "alt", "loading"]),
 };
 
@@ -116,6 +126,12 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
     if (name === "loading") {
       return `loading="${BILIBILI_IFRAME_ATTRS.loading}"`;
     }
+    if (name === "referrerpolicy") {
+      return `referrerpolicy="${BILIBILI_IFRAME_ATTRS.referrerpolicy}"`;
+    }
+    if (name === "sandbox") {
+      return `sandbox="${BILIBILI_IFRAME_ATTRS.sandbox}"`;
+    }
     if (name === "style") return null;
   }
 
@@ -175,6 +191,10 @@ function sanitizeAttrs(tagName: string, rawAttrs: string): string {
       attrs.push(`allowfullscreen="${BILIBILI_IFRAME_ATTRS.allowfullscreen}"`);
     }
     if (!iframeAttrNames.has("loading")) attrs.push(`loading="${BILIBILI_IFRAME_ATTRS.loading}"`);
+    if (!iframeAttrNames.has("referrerpolicy")) {
+      attrs.push(`referrerpolicy="${BILIBILI_IFRAME_ATTRS.referrerpolicy}"`);
+    }
+    if (!iframeAttrNames.has("sandbox")) attrs.push(`sandbox="${BILIBILI_IFRAME_ATTRS.sandbox}"`);
   }
   return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
 }

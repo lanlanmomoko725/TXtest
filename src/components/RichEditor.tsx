@@ -687,6 +687,8 @@ function createVideoFigure(video: VideoEmbed): HTMLElement {
   iframe.setAttribute("framespacing", BILIBILI_IFRAME_ATTRS.framespacing);
   iframe.setAttribute("allowfullscreen", BILIBILI_IFRAME_ATTRS.allowfullscreen);
   iframe.loading = BILIBILI_IFRAME_ATTRS.loading;
+  iframe.referrerPolicy = BILIBILI_IFRAME_ATTRS.referrerpolicy;
+  iframe.setAttribute("sandbox", BILIBILI_IFRAME_ATTRS.sandbox);
 
   const caption = document.createElement("figcaption");
   const link = document.createElement("a");

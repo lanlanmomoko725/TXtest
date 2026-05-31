@@ -14,6 +14,8 @@ export const BILIBILI_IFRAME_ATTRS = {
   framespacing: "0",
   allowfullscreen: "true",
   loading: "lazy",
+  referrerpolicy: "no-referrer",
+  sandbox: "allow-scripts allow-same-origin allow-popups",
 } as const;
 
 const BILIBILI_BVID_RE = /^BV[a-zA-Z0-9]+$/;
@@ -74,8 +76,8 @@ function parseBilibiliUrl(url: URL, rawTitle: string): VideoEmbed | null {
     params.set("aid", aidMatch[1]);
   }
 
-  params.set("p", firstPositiveInt(url.searchParams.get("p"), url.searchParams.get("page")) ?? "1");
-  addBilibiliPlayerDefaults(params);
+  const page = firstPositiveInt(url.searchParams.get("p"), url.searchParams.get("page"));
+  if (page) params.set("p", page);
 
   return {
     platform: "bilibili",
@@ -95,16 +97,10 @@ function buildBilibiliEmbed(params: URLSearchParams): string | null {
   if (bvid && BILIBILI_BVID_RE.test(bvid)) output.set("bvid", bvid);
   if (aid && /^\d+$/.test(aid)) output.set("aid", aid);
   if (cid && /^\d+$/.test(cid)) output.set("cid", cid);
-  output.set("p", page ?? "1");
-  addBilibiliPlayerDefaults(output);
+  if (page) output.set("p", page);
 
   const hasVideoId = output.has("bvid") || output.has("aid") || output.has("cid");
   return hasVideoId ? `https://player.bilibili.com/player.html?${output.toString()}` : null;
-}
-
-function addBilibiliPlayerDefaults(params: URLSearchParams): void {
-  params.set("autoplay", "0");
-  params.set("danmaku", "0");
 }
 
 function extractVideoInput(rawInput: string): { url: URL; titleHint: string } | null {
