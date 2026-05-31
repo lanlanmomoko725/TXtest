@@ -121,7 +121,7 @@ export default function CreatePost() {
 
     const finalContent = isArticle
       ? content
-      : `<p>${content.replace(/\n/g, "</p><p>")}</p>`;
+      : plainTextToHtml(content);
 
     let finalImages = imageUrls;
     if (finalImages.length === 0) {

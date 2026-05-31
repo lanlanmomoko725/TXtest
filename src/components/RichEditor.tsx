@@ -33,22 +33,144 @@ interface RichEditorProps {
   minHeight?: string;
 }
 
-function getCurrentBlock(): Element | null {
+const EDITABLE_BLOCK_SELECTOR = "p,h2,h3,blockquote,li";
+const BLOCK_SELECTOR = `${EDITABLE_BLOCK_SELECTOR},figure`;
+const FIRST_LINE_INDENT = "2em";
+
+function isNodeInside(root: HTMLElement, node: Node | null): boolean {
+  return !!node && (node === root || root.contains(node));
+}
+
+function getBlockFromNode(node: Node | null, root: HTMLElement): HTMLElement | null {
+  if (!node) return null;
+  let current: Node | null = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+
+  while (current && current !== root) {
+    if (current instanceof HTMLElement && current.matches(BLOCK_SELECTOR)) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
+function getCurrentBlock(root: HTMLElement): HTMLElement | null {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return null;
-  let node = sel.anchorNode as Node | null;
-  if (!node) return null;
-  if (node.nodeType === Node.TEXT_NODE) {
-    node = node.parentElement;
+  return getBlockFromNode(sel.anchorNode, root);
+}
+
+function getSelectedEditableBlocks(root: HTMLElement): HTMLElement[] {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return [];
+  const range = selection.getRangeAt(0);
+  if (!isNodeInside(root, range.commonAncestorContainer)) return [];
+
+  if (range.collapsed) {
+    const block = getBlockFromNode(range.startContainer, root);
+    return block && block.matches(EDITABLE_BLOCK_SELECTOR) ? [block] : [];
   }
-  while (node && node !== document.body) {
-    const tag = (node as Element).tagName?.toLowerCase();
-    if (tag === "p" || tag === "h2" || tag === "h3" || tag === "blockquote" || tag === "li" || tag === "figure") {
-      return node as Element;
-    }
-    node = (node as Element).parentElement;
+
+  const blocks = Array.from(root.querySelectorAll<HTMLElement>(EDITABLE_BLOCK_SELECTOR))
+    .filter((block) => {
+      try {
+        return range.intersectsNode(block);
+      } catch {
+        return false;
+      }
+    });
+
+  if (blocks.length > 0) return blocks;
+
+  const block = getBlockFromNode(range.startContainer, root);
+  return block && block.matches(EDITABLE_BLOCK_SELECTOR) ? [block] : [];
+}
+
+function hasVisibleContent(node: HTMLElement): boolean {
+  const text = node.textContent?.replace(/\u200B/g, "").trim() ?? "";
+  return text.length > 0 || !!node.querySelector("img,iframe,video");
+}
+
+function ensureEditableParagraph(block: HTMLElement) {
+  if (!hasVisibleContent(block)) {
+    block.innerHTML = "<br>";
   }
-  return null;
+}
+
+function normalizeLinkUrl(input: string): string | null {
+  const value = input.trim();
+  if (!value) return null;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function moveSelectionTo(block: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.setStart(block, 0);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function normalizeTopLevelDivs(root: HTMLElement) {
+  Array.from(root.children).forEach((child) => {
+    if (!(child instanceof HTMLElement) || child.tagName.toLowerCase() !== "div") return;
+    if (child.classList.contains("video-embed-frame")) return;
+
+    const p = document.createElement("p");
+    p.innerHTML = child.innerHTML || "<br>";
+    child.replaceWith(p);
+  });
+}
+
+function splitBlockAndInsertAtomicBlock(range: Range, currentBlock: HTMLElement, block: HTMLElement): HTMLElement {
+  range.deleteContents();
+
+  const newP = document.createElement("p");
+  newP.innerHTML = "<br>";
+
+  if (!currentBlock.matches(EDITABLE_BLOCK_SELECTOR) || currentBlock.tagName.toLowerCase() === "li") {
+    range.insertNode(block);
+    block.after(newP);
+    return newP;
+  }
+
+  const afterRange = document.createRange();
+  afterRange.selectNodeContents(currentBlock);
+  afterRange.setStart(range.startContainer, range.startOffset);
+  const afterContent = afterRange.extractContents();
+  const afterBlock = currentBlock.cloneNode(false) as HTMLElement;
+  afterBlock.appendChild(afterContent);
+
+  ensureEditableParagraph(currentBlock);
+
+  currentBlock.after(block);
+  block.after(newP);
+
+  if (hasVisibleContent(afterBlock)) {
+    newP.after(afterBlock);
+  }
+
+  return newP;
+}
+
+function createEmptyParagraph(): HTMLElement {
+  const p = document.createElement("p");
+  p.innerHTML = "<br>";
+  return p;
+}
+
+function isEditorEmptyContent(root: HTMLElement): boolean {
+  const text = root.textContent?.replace(/\u200B/g, "").trim() ?? "";
+  return text.length === 0 && !root.querySelector("img,iframe,video");
 }
 
 export default function RichEditor({
@@ -68,6 +190,8 @@ export default function RichEditor({
   const [videoUrl, setVideoUrl] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
   const [videoError, setVideoError] = useState("");
+  const [activeBlockTag, setActiveBlockTag] = useState("");
+  const [firstLineIndented, setFirstLineIndented] = useState(false);
   // Image alignment toolbar state
   const [imgToolbar, setImgToolbar] = useState<{
     visible: boolean;
@@ -82,7 +206,7 @@ export default function RichEditor({
     if (!el) return;
     if (value && value !== el.innerHTML) {
       el.innerHTML = value;
-      setIsEmpty(!value.trim() || value === "<p><br></p>");
+      setIsEmpty(isEditorEmptyContent(el));
     } else if (!value) {
       el.innerHTML = "<p><br></p>";
       setIsEmpty(true);
@@ -107,10 +231,18 @@ export default function RichEditor({
     const el = editorRef.current;
     if (!el) return;
     const html = el.innerHTML;
-    const empty = !html.trim() || html === "<p><br></p>" || html === "<br>";
-    setIsEmpty(empty);
+    setIsEmpty(isEditorEmptyContent(el));
     onChange(html);
   };
+
+  const updateToolbarState = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const block = getCurrentBlock(el);
+    const tag = block?.tagName.toLowerCase() ?? "";
+    setActiveBlockTag(tag);
+    setFirstLineIndented(block instanceof HTMLElement && block.style.textIndent.trim().toLowerCase() === FIRST_LINE_INDENT);
+  }, []);
 
   const saveSelection = useCallback(() => {
     const el = editorRef.current;
@@ -135,41 +267,55 @@ export default function RichEditor({
     setVideoError("");
   }, []);
 
-  const insertBlockAfterSelection = useCallback((block: HTMLElement) => {
+  const insertAtomicBlockAtSelection = useCallback((block: HTMLElement) => {
     const el = editorRef.current;
     if (!el) return;
 
     el.focus();
     const selection = window.getSelection();
-    if (selection && savedRangeRef.current) {
-      selection.removeAllRanges();
-      selection.addRange(savedRangeRef.current.cloneRange());
+    if (selection && savedRangeRef.current && isNodeInside(el, savedRangeRef.current.commonAncestorContainer)) {
+      try {
+        selection.removeAllRanges();
+        selection.addRange(savedRangeRef.current.cloneRange());
+      } catch {
+        savedRangeRef.current = null;
+      }
     }
 
-    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-    const currentBlock = getCurrentBlock();
-    const newP = document.createElement("p");
-    newP.innerHTML = "<br>";
+    const activeSelection = window.getSelection();
+    const range = activeSelection && activeSelection.rangeCount > 0 ? activeSelection.getRangeAt(0) : null;
 
-    if (currentBlock && el.contains(currentBlock) && currentBlock.tagName.toLowerCase() !== "figure") {
-      currentBlock.parentNode?.insertBefore(block, currentBlock.nextSibling);
-      block.parentNode?.insertBefore(newP, block.nextSibling);
-    } else if (range && el.contains(range.commonAncestorContainer)) {
-      range.deleteContents();
-      range.insertNode(newP);
-      range.insertNode(block);
+    if (range && isNodeInside(el, range.commonAncestorContainer)) {
+      const currentBlock = getBlockFromNode(range.startContainer, el);
+      const canSplitBlock = !!currentBlock
+        && currentBlock.tagName.toLowerCase() !== "figure"
+        && range.collapsed
+        && isNodeInside(currentBlock, range.startContainer);
+      const newP = canSplitBlock
+        ? splitBlockAndInsertAtomicBlock(range, currentBlock!, block)
+        : createEmptyParagraph();
+
+      if (!canSplitBlock) {
+        range.deleteContents();
+        range.insertNode(block);
+        block.after(newP);
+      }
+
+      moveSelectionTo(newP);
     } else {
+      const newP = createEmptyParagraph();
       el.appendChild(block);
       el.appendChild(newP);
+      moveSelectionTo(newP);
     }
 
-    const newRange = document.createRange();
-    newRange.setStart(newP, 0);
-    newRange.collapse(true);
-    selection?.removeAllRanges();
-    selection?.addRange(newRange);
     savedRangeRef.current = null;
-  }, []);
+    updateToolbarState();
+  }, [updateToolbarState]);
+
+  const insertBlockAfterSelection = useCallback((block: HTMLElement) => {
+    insertAtomicBlockAtSelection(block);
+  }, [insertAtomicBlockAtSelection]);
 
   const insertVideoFromDialog = useCallback(() => {
     const video = parseVideoUrl(videoUrl, videoTitle);
@@ -187,9 +333,48 @@ export default function RichEditor({
     document.execCommand(command, false, valueArg);
     editorRef.current?.focus();
     handleInput();
-  }, []);
+    updateToolbarState();
+  }, [updateToolbarState]);
+
+  const toggleBlockFormat = useCallback((tagName: "h2" | "h3" | "blockquote") => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    el.focus();
+    const block = getCurrentBlock(el);
+    const isActive = block?.tagName.toLowerCase() === tagName;
+    const nextTag = isActive ? "P" : tagName === "blockquote" ? "blockquote" : tagName.toUpperCase();
+    document.execCommand("formatBlock", false, nextTag);
+    handleInput();
+    updateToolbarState();
+  }, [updateToolbarState]);
+
+  const applyFirstLineIndent = useCallback((mode: "toggle" | "apply" | "clear") => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    el.focus();
+    const blocks = getSelectedEditableBlocks(el);
+    if (blocks.length === 0) return;
+
+    const allIndented = blocks.every((block) => block.style.textIndent.trim().toLowerCase() === FIRST_LINE_INDENT);
+    const shouldClear = mode === "clear" || (mode === "toggle" && allIndented);
+
+    blocks.forEach((block) => {
+      block.style.textIndent = shouldClear ? "" : FIRST_LINE_INDENT;
+    });
+
+    handleInput();
+    updateToolbarState();
+  }, [updateToolbarState]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      applyFirstLineIndent(e.shiftKey ? "clear" : "apply");
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       // Let default behavior happen but ensure we get p tags
       // The browser usually handles this well in contentEditable with execCommand
@@ -200,15 +385,9 @@ export default function RichEditor({
       enterCleanupTimeoutRef.current = setTimeout(() => {
         const el = editorRef.current;
         if (!el) return;
-        // Remove any divs that were created, replace with p
-        const divs = el.querySelectorAll("div");
-        divs.forEach((div) => {
-          if (div.closest("figure") || div.classList.contains("video-embed-frame")) return;
-          const p = document.createElement("p");
-          p.innerHTML = div.innerHTML;
-          div.parentNode?.replaceChild(p, div);
-        });
+        normalizeTopLevelDivs(el);
         handleInput();
+        updateToolbarState();
         enterCleanupTimeoutRef.current = null;
       }, 0);
     }
@@ -229,77 +408,7 @@ export default function RichEditor({
     try {
       const data: { success: boolean; url?: string; error?: string } = { success: true, url: await uploadImage(file) };
       if (data.success && data.url) {
-        // insert image
-        const el = editorRef.current;
-        if (!el) return;
-        el.focus();
-
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) {
-          // Append at end
-          const figure = createImageFigure(data.url);
-          const newP = document.createElement("p");
-          newP.innerHTML = "<br>";
-          el.appendChild(figure);
-          el.appendChild(newP);
-          // Place cursor in new paragraph
-          const range = document.createRange();
-          range.setStart(newP, 0);
-          range.collapse(true);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        } else {
-          const range = selection.getRangeAt(0);
-
-          // If cursor is inside a p/h/li/etc, split the block and insert image between
-          const currentBlock = getCurrentBlock();
-          if (currentBlock && currentBlock.tagName.toLowerCase() !== "figure") {
-            // Split the current block at cursor
-            const afterRange = range.cloneRange();
-            afterRange.collapse(false);
-            const extracted = range.extractContents();
-            const remaining = currentBlock.cloneNode(false) as HTMLElement;
-            remaining.appendChild(extracted);
-
-            // Clear original block content after cursor
-            // Actually, range.extractContents already does this
-            // Now insert image figure after current block
-            const figure = createImageFigure(data.url);
-            const newP = document.createElement("p");
-            newP.innerHTML = "<br>";
-
-            // Insert figure after current block
-            if (currentBlock.nextSibling) {
-              currentBlock.parentNode?.insertBefore(figure, currentBlock.nextSibling);
-              currentBlock.parentNode?.insertBefore(newP, figure.nextSibling);
-            } else {
-              currentBlock.parentNode?.appendChild(figure);
-              currentBlock.parentNode?.appendChild(newP);
-            }
-
-            // Move cursor to new paragraph
-            const newRange = document.createRange();
-            newRange.setStart(newP, 0);
-            newRange.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
-          } else {
-            // Insert at cursor position directly
-            range.deleteContents();
-            const figure = createImageFigure(data.url);
-            const newP = document.createElement("p");
-            newP.innerHTML = "<br>";
-            range.insertNode(newP);
-            range.insertNode(figure);
-
-            const newRange = document.createRange();
-            newRange.setStart(newP, 0);
-            newRange.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(newRange);
-          }
-        }
-
+        insertAtomicBlockAtSelection(createImageFigure(data.url));
         handleInput();
       } else {
         alert(data.error || "图片上传失败");
@@ -310,7 +419,7 @@ export default function RichEditor({
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [insertAtomicBlockAtSelection]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -324,7 +433,12 @@ export default function RichEditor({
   const insertLink = useCallback(() => {
     const url = prompt("请输入链接地址：");
     if (url) {
-      execCmd("createLink", url);
+      const normalizedUrl = normalizeLinkUrl(url);
+      if (!normalizedUrl) {
+        alert("请输入 http(s) 链接或站内相对路径");
+        return;
+      }
+      execCmd("createLink", normalizedUrl);
     }
   }, [execCmd]);
 
@@ -337,21 +451,13 @@ export default function RichEditor({
   }, [execCmd]);
 
   const handleFirstLineIndent = useCallback(() => {
-    const block = getCurrentBlock() as HTMLElement | null;
-    if (block) {
-      // Toggle: if already has 2em indent, remove it; otherwise apply
-      if (block.style.textIndent === "2em") {
-        block.style.textIndent = "";
-      } else {
-        block.style.textIndent = "2em";
-      }
-      handleInput();
-    }
-  }, []);
+    applyFirstLineIndent("toggle");
+  }, [applyFirstLineIndent]);
 
   // Handle click on images to show alignment toolbar
   const handleEditorClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+    window.setTimeout(updateToolbarState, 0);
     if (target.tagName === "IMG") {
       const figure = target.closest("figure") as HTMLElement;
       const rect = target.getBoundingClientRect();
@@ -364,7 +470,7 @@ export default function RichEditor({
     } else {
       setImgToolbar({ visible: false, x: 0, y: 0, figure: null });
     }
-  }, []);
+  }, [updateToolbarState]);
 
   const hideImgToolbar = useCallback(() => {
     setImgToolbar({ visible: false, x: 0, y: 0, figure: null });
@@ -412,17 +518,17 @@ export default function RichEditor({
           <Italic className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarDivider />
-        <ToolbarButton onClick={() => execCmd("formatBlock", "H2")} title="大标题">
+        <ToolbarButton onClick={() => toggleBlockFormat("h2")} title="大标题" active={activeBlockTag === "h2"}>
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => execCmd("formatBlock", "H3")} title="小标题">
+        <ToolbarButton onClick={() => toggleBlockFormat("h3")} title="小标题" active={activeBlockTag === "h3"}>
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarDivider />
         <ToolbarButton onClick={() => execCmd("insertUnorderedList")} title="无序列表">
           <List className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={() => execCmd("formatBlock", "blockquote")} title="引用">
+        <ToolbarButton onClick={() => toggleBlockFormat("blockquote")} title="引用" active={activeBlockTag === "blockquote"}>
           <Quote className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton onClick={() => execCmd("justifyLeft")} title="左对齐">
@@ -441,6 +547,7 @@ export default function RichEditor({
         <ToolbarButton
           onClick={handleFirstLineIndent}
           title="首行缩进（两个中文字符）"
+          active={firstLineIndented}
         >
           <span className="text-xs font-bold leading-none">↦2</span>
         </ToolbarButton>
@@ -460,7 +567,10 @@ export default function RichEditor({
         </ToolbarButton>
         <ToolbarDivider />
         <ToolbarButton
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            saveSelection();
+            fileInputRef.current?.click();
+          }}
           disabled={uploading}
           title="插入图片"
           active={false}
@@ -554,6 +664,8 @@ export default function RichEditor({
           contentEditable
           onInput={handleInput}
           onKeyDown={handleKeyDown}
+          onKeyUp={updateToolbarState}
+          onMouseUp={updateToolbarState}
           onBlur={handleInput}
           onClick={handleEditorClick}
           className="px-5 py-4 outline-none text-[15px] leading-relaxed text-slate-800 rich-editor"
