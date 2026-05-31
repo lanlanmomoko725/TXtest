@@ -12,10 +12,10 @@ export const BILIBILI_IFRAME_ATTRS = {
   border: "0",
   frameborder: "no",
   framespacing: "0",
+  allow: "fullscreen; picture-in-picture; web-share",
   allowfullscreen: "true",
   loading: "lazy",
   referrerpolicy: "no-referrer",
-  sandbox: "allow-scripts allow-same-origin allow-popups",
 } as const;
 
 const BILIBILI_BVID_RE = /^BV[a-zA-Z0-9]+$/;

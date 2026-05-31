@@ -52,7 +52,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Hero Carousel */}
-      <section className="relative w-full h-[420px] md:h-[520px] overflow-hidden bg-slate-900">
+      <section className="relative w-full h-[420px] md:h-[600px] lg:h-[660px] overflow-hidden bg-slate-900">
         {featuredLoading ? (
           <div className="flex items-center justify-center h-full">
             <Skeleton className="h-full w-full absolute inset-0" />
@@ -73,12 +73,26 @@ export default function Home() {
                     idx === currentIndex ? "opacity-100 z-10" : "opacity-0 z-0"
                   }`}
                 >
-                  <div
-                    className="absolute inset-0 bg-cover bg-center cursor-pointer animate-ken-burns motion-reduce:animate-none"
-                    style={{ backgroundImage: `url(${imageUrl})` }}
+                  <button
+                    type="button"
+                    className="group absolute inset-0 cursor-pointer overflow-hidden border-0 bg-transparent p-0 text-left"
                     onClick={() => navigate(`/post/${post.id}`)}
-                  />
-                  <div className="absolute inset-0 bg-black/40" />
+                    aria-label={`查看精选：${post.title}`}
+                  >
+                    <img
+                      src={imageUrl}
+                      alt=""
+                      className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl opacity-70"
+                      loading={idx === 0 ? "eager" : "lazy"}
+                    />
+                    <img
+                      src={imageUrl}
+                      alt={post.title}
+                      className="relative z-10 h-full w-full object-contain transition-transform duration-1000 ease-out motion-safe:group-hover:scale-[1.01]"
+                      loading={idx === 0 ? "eager" : "lazy"}
+                    />
+                  </button>
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/25 to-black/45" />
                 </div>
               );
             })}

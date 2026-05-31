@@ -12,6 +12,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignJustify,
   Indent,
   Outdent,
   Undo,
@@ -36,6 +37,20 @@ interface RichEditorProps {
 const EDITABLE_BLOCK_SELECTOR = "p,h2,h3,blockquote,li";
 const BLOCK_SELECTOR = `${EDITABLE_BLOCK_SELECTOR},figure`;
 const FIRST_LINE_INDENT = "2em";
+const IMAGE_WIDTH_OPTIONS = [50, 75, 100] as const;
+const LINE_HEIGHT_OPTIONS = [
+  { label: "行距", value: "" },
+  { label: "1.5", value: "1.5" },
+  { label: "1.75", value: "1.75" },
+  { label: "2", value: "2" },
+  { label: "2.25", value: "2.25" },
+] as const;
+const LETTER_SPACING_OPTIONS = [
+  { label: "字距", value: "" },
+  { label: "0.02", value: "0.02em" },
+  { label: "0.05", value: "0.05em" },
+  { label: "0.1", value: "0.1em" },
+] as const;
 
 function isNodeInside(root: HTMLElement, node: Node | null): boolean {
   return !!node && (node === root || root.contains(node));
@@ -192,6 +207,8 @@ export default function RichEditor({
   const [videoError, setVideoError] = useState("");
   const [activeBlockTag, setActiveBlockTag] = useState("");
   const [firstLineIndented, setFirstLineIndented] = useState(false);
+  const [lineHeightValue, setLineHeightValue] = useState("");
+  const [letterSpacingValue, setLetterSpacingValue] = useState("");
   // Image alignment toolbar state
   const [imgToolbar, setImgToolbar] = useState<{
     visible: boolean;
@@ -242,6 +259,8 @@ export default function RichEditor({
     const tag = block?.tagName.toLowerCase() ?? "";
     setActiveBlockTag(tag);
     setFirstLineIndented(block instanceof HTMLElement && block.style.textIndent.trim().toLowerCase() === FIRST_LINE_INDENT);
+    setLineHeightValue(block instanceof HTMLElement ? block.style.lineHeight.trim() : "");
+    setLetterSpacingValue(block instanceof HTMLElement ? block.style.letterSpacing.trim() : "");
   }, []);
 
   const saveSelection = useCallback(() => {
@@ -251,6 +270,22 @@ export default function RichEditor({
     const range = selection.getRangeAt(0);
     if (el.contains(range.commonAncestorContainer)) {
       savedRangeRef.current = range.cloneRange();
+    }
+  }, []);
+
+  const restoreSavedSelection = useCallback(() => {
+    const el = editorRef.current;
+    const selection = window.getSelection();
+    if (!el || !selection || !savedRangeRef.current) return false;
+    if (!isNodeInside(el, savedRangeRef.current.commonAncestorContainer)) return false;
+    try {
+      el.focus();
+      selection.removeAllRanges();
+      selection.addRange(savedRangeRef.current.cloneRange());
+      return true;
+    } catch {
+      savedRangeRef.current = null;
+      return false;
     }
   }, []);
 
@@ -272,15 +307,7 @@ export default function RichEditor({
     if (!el) return;
 
     el.focus();
-    const selection = window.getSelection();
-    if (selection && savedRangeRef.current && isNodeInside(el, savedRangeRef.current.commonAncestorContainer)) {
-      try {
-        selection.removeAllRanges();
-        selection.addRange(savedRangeRef.current.cloneRange());
-      } catch {
-        savedRangeRef.current = null;
-      }
-    }
+    restoreSavedSelection();
 
     const activeSelection = window.getSelection();
     const range = activeSelection && activeSelection.rangeCount > 0 ? activeSelection.getRangeAt(0) : null;
@@ -311,7 +338,7 @@ export default function RichEditor({
 
     savedRangeRef.current = null;
     updateToolbarState();
-  }, [updateToolbarState]);
+  }, [restoreSavedSelection, updateToolbarState]);
 
   const insertBlockAfterSelection = useCallback((block: HTMLElement) => {
     insertAtomicBlockAtSelection(block);
@@ -367,6 +394,27 @@ export default function RichEditor({
     handleInput();
     updateToolbarState();
   }, [updateToolbarState]);
+
+  const applyBlockStyle = useCallback((property: "line-height" | "letter-spacing", value: string) => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    restoreSavedSelection();
+    el.focus();
+    const blocks = getSelectedEditableBlocks(el);
+    if (blocks.length === 0) return;
+
+    blocks.forEach((block) => {
+      if (value) {
+        block.style.setProperty(property, value);
+      } else {
+        block.style.removeProperty(property);
+      }
+    });
+
+    handleInput();
+    updateToolbarState();
+  }, [restoreSavedSelection, updateToolbarState]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Tab") {
@@ -430,6 +478,23 @@ export default function RichEditor({
     e.target.value = "";
   };
 
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const itemFiles = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    const files = itemFiles.length > 0
+      ? itemFiles
+      : Array.from(e.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+
+    if (files.length === 0) return;
+
+    e.preventDefault();
+    for (const file of files) {
+      await insertImage(file);
+    }
+  }, [insertImage]);
+
   const insertLink = useCallback(() => {
     const url = prompt("请输入链接地址：");
     if (url) {
@@ -480,14 +545,15 @@ export default function RichEditor({
     const el = imgToolbar.figure as HTMLElement | null;
     if (!el) return;
     if (el.tagName === "FIGURE") {
+      const width = el.style.width || "75%";
       el.style.textAlign = align;
       el.style.margin = align === "center"
         ? "12px auto"
         : align === "left"
-          ? "12px 12px 12px 0"
-          : "12px 0 12px 12px";
-      el.style.display = align === "center" ? "block" : "inline-block";
-      el.style.width = align === "center" ? "100%" : "auto";
+          ? "12px auto 12px 0"
+          : "12px 0 12px auto";
+      el.style.display = "block";
+      el.style.width = width;
     } else {
       // Plain IMG without figure wrapper
       const img = el as HTMLImageElement;
@@ -505,6 +571,29 @@ export default function RichEditor({
     hideImgToolbar();
     handleInput();
   }, [imgToolbar, hideImgToolbar]);
+
+  const setImageWidth = useCallback((width: number) => {
+    const el = imgToolbar.figure as HTMLElement | null;
+    if (!el) return;
+    const targetWidth = `${width}%`;
+
+    if (el.tagName === "FIGURE") {
+      el.style.width = targetWidth;
+      el.style.maxWidth = "100%";
+      el.style.display = "block";
+      const img = el.querySelector("img") as HTMLImageElement | null;
+      if (img) {
+        img.style.width = "100%";
+        img.style.maxWidth = "100%";
+      }
+    } else {
+      const img = el as HTMLImageElement;
+      img.style.width = targetWidth;
+      img.style.maxWidth = "100%";
+    }
+
+    handleInput();
+  }, [imgToolbar]);
 
 
   return (
@@ -537,6 +626,26 @@ export default function RichEditor({
         <ToolbarButton onClick={() => execCmd("justifyCenter")} title="居中">
           <AlignCenter className="h-4 w-4" />
         </ToolbarButton>
+        <ToolbarButton onClick={() => execCmd("justifyRight")} title="右对齐">
+          <AlignRight className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton onClick={() => execCmd("justifyFull")} title="两端对齐">
+          <AlignJustify className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarSelect
+          title="行距"
+          value={lineHeightValue}
+          options={LINE_HEIGHT_OPTIONS}
+          onPointerDown={saveSelection}
+          onChange={(value) => applyBlockStyle("line-height", value)}
+        />
+        <ToolbarSelect
+          title="字距"
+          value={letterSpacingValue}
+          options={LETTER_SPACING_OPTIONS}
+          onPointerDown={saveSelection}
+          onChange={(value) => applyBlockStyle("letter-spacing", value)}
+        />
         <ToolbarDivider />
         <ToolbarButton onClick={handleIndent} title="增加缩进">
           <Indent className="h-4 w-4" />
@@ -555,17 +664,6 @@ export default function RichEditor({
         <ToolbarButton onClick={insertLink} title="插入链接">
           <LinkIcon className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton onClick={openVideoDialog} title="插入视频">
-          <Video className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarDivider />
-        <ToolbarButton onClick={() => execCmd("undo")} title="撤销">
-          <Undo className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton onClick={() => execCmd("redo")} title="重做">
-          <Redo className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarDivider />
         <ToolbarButton
           onClick={() => {
             saveSelection();
@@ -580,6 +678,16 @@ export default function RichEditor({
           ) : (
             <ImagePlus className="h-4 w-4" />
           )}
+        </ToolbarButton>
+        <ToolbarButton onClick={openVideoDialog} title="插入视频">
+          <Video className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarDivider />
+        <ToolbarButton onClick={() => execCmd("undo")} title="撤销">
+          <Undo className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton onClick={() => execCmd("redo")} title="重做">
+          <Redo className="h-4 w-4" />
         </ToolbarButton>
         <input
           ref={fileInputRef}
@@ -666,6 +774,7 @@ export default function RichEditor({
           onKeyDown={handleKeyDown}
           onKeyUp={updateToolbarState}
           onMouseUp={updateToolbarState}
+          onPaste={handlePaste}
           onBlur={handleInput}
           onClick={handleEditorClick}
           className="px-5 py-4 outline-none text-[15px] leading-relaxed text-slate-800 rich-editor"
@@ -714,6 +823,18 @@ export default function RichEditor({
             <AlignRight className="h-4 w-4" />
           </button>
           <div className="w-px h-5 bg-slate-200 mx-1" />
+          {IMAGE_WIDTH_OPTIONS.map((width) => (
+            <button
+              key={width}
+              type="button"
+              onClick={() => setImageWidth(width)}
+              className="min-w-8 px-1.5 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-sky-600 transition-colors"
+              title={`图片宽度 ${width}%`}
+            >
+              {width}
+            </button>
+          ))}
+          <div className="w-px h-5 bg-slate-200 mx-1" />
           <button
             type="button"
             onClick={hideImgToolbar}
@@ -759,21 +880,53 @@ function ToolbarButton({
   );
 }
 
+function ToolbarSelect({
+  title,
+  value,
+  options,
+  onChange,
+  onPointerDown,
+}: {
+  title: string;
+  value: string;
+  options: ReadonlyArray<{ label: string; value: string }>;
+  onChange: (value: string) => void;
+  onPointerDown: () => void;
+}) {
+  return (
+    <select
+      title={title}
+      value={value}
+      onPointerDown={onPointerDown}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600 outline-none transition-colors hover:border-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+    >
+      {options.map((option) => (
+        <option key={option.value || "default"} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function ToolbarDivider() {
   return <div className="w-px h-5 bg-slate-300 mx-1" />;
 }
 
 function createImageFigure(url: string): HTMLElement {
   const figure = document.createElement("figure");
-  figure.style.margin = "12px 0";
+  figure.style.margin = "12px auto";
   figure.style.textAlign = "center";
   figure.style.display = "block";
+  figure.style.width = "75%";
+  figure.style.maxWidth = "100%";
 
   const img = document.createElement("img");
   img.src = url;
   img.alt = "";
-  img.style.maxWidth = "75%";
-  img.style.width = "auto";
+  img.style.maxWidth = "100%";
+  img.style.width = "100%";
   img.style.borderRadius = "8px";
   img.style.display = "inline-block";
   img.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
@@ -797,10 +950,10 @@ function createVideoFigure(video: VideoEmbed): HTMLElement {
   iframe.setAttribute("border", BILIBILI_IFRAME_ATTRS.border);
   iframe.setAttribute("frameborder", BILIBILI_IFRAME_ATTRS.frameborder);
   iframe.setAttribute("framespacing", BILIBILI_IFRAME_ATTRS.framespacing);
+  iframe.setAttribute("allow", BILIBILI_IFRAME_ATTRS.allow);
   iframe.setAttribute("allowfullscreen", BILIBILI_IFRAME_ATTRS.allowfullscreen);
   iframe.loading = BILIBILI_IFRAME_ATTRS.loading;
   iframe.referrerPolicy = BILIBILI_IFRAME_ATTRS.referrerpolicy;
-  iframe.setAttribute("sandbox", BILIBILI_IFRAME_ATTRS.sandbox);
 
   const caption = document.createElement("figcaption");
   const link = document.createElement("a");

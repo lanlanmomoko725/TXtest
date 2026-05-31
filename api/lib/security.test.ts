@@ -69,10 +69,11 @@ describe("HTML sanitizer", () => {
     expect(html).toContain('border="0"');
     expect(html).toContain('frameborder="no"');
     expect(html).toContain('framespacing="0"');
+    expect(html).toContain('allow="fullscreen; picture-in-picture; web-share"');
     expect(html).toContain('allowfullscreen="true"');
     expect(html).toContain('loading="lazy"');
     expect(html).toContain('referrerpolicy="no-referrer"');
-    expect(html).toContain('sandbox="allow-scripts allow-same-origin allow-popups"');
+    expect(html).not.toContain("sandbox=");
     expect(html).not.toContain("p=1");
     expect(html).not.toContain("autoplay");
     expect(html).not.toContain("danmaku");
@@ -91,10 +92,11 @@ describe("HTML sanitizer", () => {
     expect(html).toContain('border="0"');
     expect(html).toContain('frameborder="no"');
     expect(html).toContain('framespacing="0"');
+    expect(html).toContain('allow="fullscreen; picture-in-picture; web-share"');
     expect(html).toContain('allowfullscreen="true"');
     expect(html).toContain('loading="lazy"');
     expect(html).toContain('referrerpolicy="no-referrer"');
-    expect(html).toContain('sandbox="allow-scripts allow-same-origin allow-popups"');
+    expect(html).not.toContain("sandbox=");
     expect(html).not.toContain("autoplay");
     expect(html).not.toContain("danmaku");
   });
@@ -106,6 +108,19 @@ describe("HTML sanitizer", () => {
     expect(unknown).not.toContain("https://example.com/embed");
     expect(unknown).not.toContain("onerror");
     expect(tencent).not.toContain("v.qq.com");
+  });
+
+  it("keeps safe typography and image sizing styles", () => {
+    const html = sanitizeHtml(
+      '<p style="line-height:1.75;letter-spacing:0.05em;background:url(javascript:bad)">text</p><figure style="width:75%;max-width:100%;margin:12px auto"><img src="/uploads/a.jpg" style="width:100%;max-width:100%" alt=""></figure>',
+    );
+
+    expect(html).toContain("line-height: 1.75");
+    expect(html).toContain("letter-spacing: 0.05em");
+    expect(html).toContain("width: 75%");
+    expect(html).toContain("max-width: 100%");
+    expect(html).not.toContain("background");
+    expect(html).not.toContain("javascript");
   });
 });
 

@@ -36,10 +36,10 @@ const ATTRS_BY_TAG: Record<string, Set<string>> = {
     "border",
     "frameborder",
     "framespacing",
+    "allow",
     "allowfullscreen",
     "loading",
     "referrerpolicy",
-    "sandbox",
   ]),
   img: new Set(["src", "alt", "loading"]),
 };
@@ -49,6 +49,8 @@ const ALLOWED_STYLE_PROPS = new Set([
   "box-shadow",
   "display",
   "float",
+  "letter-spacing",
+  "line-height",
   "margin",
   "margin-bottom",
   "margin-left",
@@ -120,6 +122,9 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
     if (name === "framespacing") {
       return `framespacing="${BILIBILI_IFRAME_ATTRS.framespacing}"`;
     }
+    if (name === "allow") {
+      return `allow="${BILIBILI_IFRAME_ATTRS.allow}"`;
+    }
     if (name === "allowfullscreen") {
       return `allowfullscreen="${BILIBILI_IFRAME_ATTRS.allowfullscreen}"`;
     }
@@ -128,9 +133,6 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
     }
     if (name === "referrerpolicy") {
       return `referrerpolicy="${BILIBILI_IFRAME_ATTRS.referrerpolicy}"`;
-    }
-    if (name === "sandbox") {
-      return `sandbox="${BILIBILI_IFRAME_ATTRS.sandbox}"`;
     }
     if (name === "style") return null;
   }
@@ -187,6 +189,7 @@ function sanitizeAttrs(tagName: string, rawAttrs: string): string {
     if (!iframeAttrNames.has("border")) attrs.push(`border="${BILIBILI_IFRAME_ATTRS.border}"`);
     if (!iframeAttrNames.has("frameborder")) attrs.push(`frameborder="${BILIBILI_IFRAME_ATTRS.frameborder}"`);
     if (!iframeAttrNames.has("framespacing")) attrs.push(`framespacing="${BILIBILI_IFRAME_ATTRS.framespacing}"`);
+    if (!iframeAttrNames.has("allow")) attrs.push(`allow="${BILIBILI_IFRAME_ATTRS.allow}"`);
     if (!iframeAttrNames.has("allowfullscreen")) {
       attrs.push(`allowfullscreen="${BILIBILI_IFRAME_ATTRS.allowfullscreen}"`);
     }
@@ -194,7 +197,6 @@ function sanitizeAttrs(tagName: string, rawAttrs: string): string {
     if (!iframeAttrNames.has("referrerpolicy")) {
       attrs.push(`referrerpolicy="${BILIBILI_IFRAME_ATTRS.referrerpolicy}"`);
     }
-    if (!iframeAttrNames.has("sandbox")) attrs.push(`sandbox="${BILIBILI_IFRAME_ATTRS.sandbox}"`);
   }
   return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
 }
