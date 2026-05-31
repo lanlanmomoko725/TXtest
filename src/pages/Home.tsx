@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Sparkles,
   Star,
   ChevronLeft,
   ChevronRight,
@@ -97,42 +96,34 @@ export default function Home() {
               );
             })}
 
-            {/* Text overlay */}
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center px-4 pointer-events-none">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-4 py-1.5 text-sm font-medium text-white mb-5 animate-fade-in-up">
-                <Sparkles className="h-4 w-4" />
-                天象爱好者社区
+            {currentPost && (
+              <div className="absolute inset-x-0 bottom-14 z-20 flex justify-center px-4 pointer-events-none md:bottom-16">
+                <Link
+                  to={`/post/${currentPost.id}`}
+                  className="pointer-events-auto inline-flex max-w-[min(92vw,520px)] items-center gap-2 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <span className="truncate">
+                    查看精选：{currentPost.title.slice(0, 24)}
+                    {currentPost.title.length > 24 ? "…" : ""}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                </Link>
               </div>
-              <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-4 animate-fade-in-up motion-reduce:animate-none" style={{ animationDelay: "100ms" }}>
-                记录天空的每一种奇迹
-              </h1>
-              {currentPost && (
-                <div className="mt-6 pointer-events-auto animate-fade-in-up motion-reduce:animate-none" style={{ animationDelay: "200ms" }}>
-                  <Link
-                    to={`/post/${currentPost.id}`}
-                    className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    查看精选：{currentPost.title.slice(0, 20)}
-                    {currentPost.title.length > 20 ? "…" : ""}
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Navigation arrows */}
             {carouselPosts.length > 1 && (
               <>
                 <button
                   onClick={prevSlide}
-                  className="absolute bottom-16 left-4 md:top-1/2 md:-translate-y-1/2 md:bottom-auto z-30 p-2.5 rounded-full bg-black/30 text-white hover:bg-black/50 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
+                  className="absolute left-4 top-1/2 z-30 -translate-y-1/2 p-2.5 rounded-full bg-black/30 text-white hover:bg-black/50 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
                   aria-label="上一张"
                 >
                   <ChevronLeft className="h-6 w-6" />
                 </button>
                 <button
                   onClick={nextSlide}
-                  className="absolute bottom-16 right-4 md:top-1/2 md:-translate-y-1/2 md:bottom-auto z-30 p-2.5 rounded-full bg-black/30 text-white hover:bg-black/50 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
+                  className="absolute right-4 top-1/2 z-30 -translate-y-1/2 p-2.5 rounded-full bg-black/30 text-white hover:bg-black/50 transition-all duration-200 hover:scale-110 focus-visible:ring-2 focus-visible:ring-white/50"
                   aria-label="下一张"
                 >
                   <ChevronRight className="h-6 w-6" />
@@ -159,17 +150,7 @@ export default function Home() {
             )}
           </>
         ) : (
-          <div className="relative h-full bg-gradient-to-br from-sky-600 to-indigo-700">
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-4 py-1.5 text-sm font-medium text-white mb-5">
-                <Sparkles className="h-4 w-4" />
-                天象爱好者社区
-              </div>
-              <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white mb-4">
-                记录天空的每一种奇迹
-              </h1>
-            </div>
-          </div>
+          <div className="relative h-full bg-gradient-to-br from-sky-600 to-indigo-700" />
         )}
       </section>
 

@@ -375,16 +375,17 @@ export default function CreatePost() {
                 图片上传
               </Label>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-dashed border-border/80 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all duration-200 text-sm text-muted-foreground hover:text-primary focus-visible:ring-2 focus-visible:ring-ring">
+                <label className="relative inline-flex items-center gap-2 overflow-hidden px-5 py-2.5 rounded-xl border-2 border-dashed border-border/80 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all duration-200 text-sm text-muted-foreground hover:text-primary focus-within:ring-2 focus-within:ring-ring">
                   <Upload className="h-4 w-4" />
                   {uploading ? "上传中…" : "选择图片"}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/gif,image/webp"
                     multiple
-                    className="hidden"
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                     onChange={handleFileUpload}
                     disabled={uploading}
+                    aria-label="选择图片"
                   />
                 </label>
                 <span className="text-xs text-muted-foreground">支持 JPG、PNG、GIF，单张最大 10MB，最多 18 张</span>

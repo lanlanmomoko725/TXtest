@@ -196,7 +196,6 @@ export default function RichEditor({
 }: RichEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEmpty, setIsEmpty] = useState(!value || value === "<p><br></p>");
   const enterCleanupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
@@ -664,21 +663,18 @@ export default function RichEditor({
         <ToolbarButton onClick={insertLink} title="插入链接">
           <LinkIcon className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton
-          onClick={() => {
-            saveSelection();
-            fileInputRef.current?.click();
-          }}
-          disabled={uploading}
+        <ToolbarFileButton
           title="插入图片"
-          active={false}
+          disabled={uploading}
+          onPointerDown={saveSelection}
+          onChange={handleFileChange}
         >
           {uploading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <ImagePlus className="h-4 w-4" />
           )}
-        </ToolbarButton>
+        </ToolbarFileButton>
         <ToolbarButton onClick={openVideoDialog} title="插入视频">
           <Video className="h-4 w-4" />
         </ToolbarButton>
@@ -689,14 +685,6 @@ export default function RichEditor({
         <ToolbarButton onClick={() => execCmd("redo")} title="重做">
           <Redo className="h-4 w-4" />
         </ToolbarButton>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp"
-          multiple
-          className="hidden"
-          onChange={handleFileChange}
-        />
       </div>
 
       {videoDialogOpen && (
@@ -877,6 +865,44 @@ function ToolbarButton({
     >
       {children}
     </button>
+  );
+}
+
+function ToolbarFileButton({
+  children,
+  title,
+  disabled,
+  onPointerDown,
+  onChange,
+}: {
+  children: React.ReactNode;
+  title: string;
+  disabled?: boolean;
+  onPointerDown: () => void;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <label
+      title={title}
+      aria-disabled={disabled}
+      className={`relative inline-flex items-center justify-center overflow-hidden p-1.5 rounded-md transition-colors ${
+        disabled
+          ? "cursor-not-allowed opacity-40"
+          : "cursor-pointer text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+      }`}
+    >
+      <span className="pointer-events-none">{children}</span>
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        multiple
+        disabled={disabled}
+        onPointerDown={onPointerDown}
+        onChange={onChange}
+        aria-label={title}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+      />
+    </label>
   );
 }
 

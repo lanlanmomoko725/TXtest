@@ -21,6 +21,8 @@ export const BILIBILI_IFRAME_ATTRS = {
 const BILIBILI_BVID_RE = /^BV[a-zA-Z0-9]+$/;
 const BILIBILI_AID_RE = /^(?:av)?(\d+)$/i;
 const BILIBILI_DEFAULT_TITLE = "\u54d4\u54e9\u54d4\u54e9\u89c6\u9891";
+const BILIBILI_MOBILE_PLAYER_HOST = "www.bilibili.com";
+const BILIBILI_MOBILE_PLAYER_PATH = "/blackboard/html5mobileplayer.html";
 
 export function parseVideoUrl(rawInput: string, rawTitle = ""): VideoEmbed | null {
   const input = extractVideoInput(rawInput);
@@ -38,14 +40,37 @@ export function normalizeVideoEmbedSrc(rawSrc: string): string | null {
   if (!url || url.protocol !== "https:") return null;
 
   const host = normalizeHost(url.hostname);
-  if (host !== "player.bilibili.com") return null;
-  return normalizePath(url.pathname) === "/player.html" ? buildBilibiliEmbed(url.searchParams) : null;
+  const path = normalizePath(url.pathname);
+  if (host === "player.bilibili.com" && path === "/player.html") {
+    return buildBilibiliEmbed(url.searchParams);
+  }
+  if (host === "bilibili.com" && path === BILIBILI_MOBILE_PLAYER_PATH) {
+    return buildBilibiliEmbed(url.searchParams);
+  }
+  return null;
 }
 
 function parseBilibiliUrl(url: URL, rawTitle: string): VideoEmbed | null {
   const host = normalizeHost(url.hostname);
 
   if (host === "player.bilibili.com" && normalizePath(url.pathname) === "/player.html") {
+    const embedSrc = buildBilibiliEmbed(url.searchParams);
+    if (!embedSrc) return null;
+    const bvid = url.searchParams.get("bvid");
+    const aid = url.searchParams.get("aid");
+    return {
+      platform: "bilibili",
+      embedSrc,
+      originalUrl: bvid
+        ? `https://www.bilibili.com/video/${bvid}`
+        : aid
+          ? `https://www.bilibili.com/video/av${aid}`
+          : toHttpsUrl(url),
+      title: normalizeVideoTitle(rawTitle, BILIBILI_DEFAULT_TITLE),
+    };
+  }
+
+  if (host === "bilibili.com" && normalizePath(url.pathname) === BILIBILI_MOBILE_PLAYER_PATH) {
     const embedSrc = buildBilibiliEmbed(url.searchParams);
     if (!embedSrc) return null;
     const bvid = url.searchParams.get("bvid");
@@ -77,11 +102,11 @@ function parseBilibiliUrl(url: URL, rawTitle: string): VideoEmbed | null {
   }
 
   const page = firstPositiveInt(url.searchParams.get("p"), url.searchParams.get("page"));
-  if (page) params.set("p", page);
+  if (page) params.set("page", page);
 
   return {
     platform: "bilibili",
-    embedSrc: `https://player.bilibili.com/player.html?${params.toString()}`,
+    embedSrc: buildBilibiliEmbed(params)!,
     originalUrl: toHttpsUrl(url),
     title: normalizeVideoTitle(rawTitle, BILIBILI_DEFAULT_TITLE),
   };
@@ -97,10 +122,13 @@ function buildBilibiliEmbed(params: URLSearchParams): string | null {
   if (bvid && BILIBILI_BVID_RE.test(bvid)) output.set("bvid", bvid);
   if (aid && /^\d+$/.test(aid)) output.set("aid", aid);
   if (cid && /^\d+$/.test(cid)) output.set("cid", cid);
-  if (page) output.set("p", page);
+  if (page) output.set("page", page);
+  output.set("autoplay", "0");
 
   const hasVideoId = output.has("bvid") || output.has("aid") || output.has("cid");
-  return hasVideoId ? `https://player.bilibili.com/player.html?${output.toString()}` : null;
+  return hasVideoId
+    ? `https://${BILIBILI_MOBILE_PLAYER_HOST}${BILIBILI_MOBILE_PLAYER_PATH}?${output.toString()}`
+    : null;
 }
 
 function extractVideoInput(rawInput: string): { url: URL; titleHint: string } | null {
@@ -129,7 +157,7 @@ function parseHttpUrl(rawUrl: string): URL | null {
 }
 
 function stripTrailingUrlPunctuation(value: string): string {
-  return value.replace(/[)\],\uFF0C\u3002\uFF1B;\u3001\u3011]+$/g, "");
+  return value.replace(/[)\],\uFF0C\u3002\uFF1B;\u3001\u3011\u2019\u201D]+$/g, "");
 }
 
 function extractSharedTitle(prefix: string): string {

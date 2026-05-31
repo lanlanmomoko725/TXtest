@@ -63,8 +63,9 @@ describe("HTML sanitizer", () => {
     );
 
     expect(html).toContain('class="video-embed"');
-    expect(html).toContain('src="https://player.bilibili.com/player.html?');
+    expect(html).toContain('src="https://www.bilibili.com/blackboard/html5mobileplayer.html?');
     expect(html).toContain("bvid=BV1xx411c7mD");
+    expect(html).toContain("autoplay=0");
     expect(html).toContain('scrolling="no"');
     expect(html).toContain('border="0"');
     expect(html).toContain('frameborder="no"');
@@ -75,7 +76,7 @@ describe("HTML sanitizer", () => {
     expect(html).toContain('referrerpolicy="no-referrer"');
     expect(html).not.toContain("sandbox=");
     expect(html).not.toContain("p=1");
-    expect(html).not.toContain("autoplay");
+    expect(html).not.toContain("autoplay=1");
     expect(html).not.toContain("danmaku");
     expect(html).not.toContain("isOutside");
     expect(html).not.toContain("vd_source");
@@ -88,6 +89,8 @@ describe("HTML sanitizer", () => {
     const html = sanitizeHtml('<iframe src="https://player.bilibili.com/player.html?bvid=BV1v5411G7Ep"></iframe>');
 
     expect(html).toContain("bvid=BV1v5411G7Ep");
+    expect(html).toContain('src="https://www.bilibili.com/blackboard/html5mobileplayer.html?');
+    expect(html).toContain("autoplay=0");
     expect(html).toContain('scrolling="no"');
     expect(html).toContain('border="0"');
     expect(html).toContain('frameborder="no"');
@@ -97,7 +100,7 @@ describe("HTML sanitizer", () => {
     expect(html).toContain('loading="lazy"');
     expect(html).toContain('referrerpolicy="no-referrer"');
     expect(html).not.toContain("sandbox=");
-    expect(html).not.toContain("autoplay");
+    expect(html).not.toContain("autoplay=1");
     expect(html).not.toContain("danmaku");
   });
 
@@ -133,10 +136,11 @@ describe("video URL parser", () => {
       title: "\u6d4b\u8bd5\u89c6\u9891",
       originalUrl: "https://www.bilibili.com/video/BV1xx411c7mD/?p=2",
     });
-    expect(video?.embedSrc).toContain("https://player.bilibili.com/player.html?");
+    expect(video?.embedSrc).toContain("https://www.bilibili.com/blackboard/html5mobileplayer.html?");
     expect(video?.embedSrc).toContain("bvid=BV1xx411c7mD");
-    expect(video?.embedSrc).toContain("p=2");
-    expect(video?.embedSrc).not.toContain("autoplay");
+    expect(video?.embedSrc).toContain("page=2");
+    expect(video?.embedSrc).toContain("autoplay=0");
+    expect(video?.embedSrc).not.toContain("autoplay=1");
     expect(video?.embedSrc).not.toContain("danmaku");
     expect(video?.embedSrc).not.toContain("isOutside");
   });
@@ -154,8 +158,10 @@ describe("video URL parser", () => {
         "https://www.bilibili.com/video/BV1v5411G7Ep/?share_source=copy_web&vd_source=eed6f6d8cd3b681920ae4aeb9e0863a3",
     });
     expect(video?.embedSrc).toContain("bvid=BV1v5411G7Ep");
+    expect(video?.embedSrc).toContain("https://www.bilibili.com/blackboard/html5mobileplayer.html?");
+    expect(video?.embedSrc).toContain("autoplay=0");
     expect(video?.embedSrc).not.toContain("p=1");
-    expect(video?.embedSrc).not.toContain("autoplay");
+    expect(video?.embedSrc).not.toContain("autoplay=1");
     expect(video?.embedSrc).not.toContain("danmaku");
   });
 
@@ -165,7 +171,10 @@ describe("video URL parser", () => {
     );
 
     expect(video?.embedSrc).toContain("bvid=BV1v5411G7Ep");
+    expect(video?.embedSrc).toContain("https://www.bilibili.com/blackboard/html5mobileplayer.html?");
+    expect(video?.embedSrc).toContain("autoplay=0");
     expect(video?.embedSrc).not.toContain("p=1");
+    expect(video?.embedSrc).not.toContain("autoplay=1");
     expect(video?.embedSrc).not.toContain("spm_id_from");
     expect(video?.embedSrc).not.toContain("vd_source");
     expect(video?.embedSrc).not.toContain("isOutside");
@@ -177,10 +186,23 @@ describe("video URL parser", () => {
     );
 
     expect(video?.embedSrc).toContain("bvid=BV1v5411G7Ep");
-    expect(video?.embedSrc).toContain("p=3");
-    expect(video?.embedSrc).not.toContain("autoplay");
+    expect(video?.embedSrc).toContain("page=3");
+    expect(video?.embedSrc).toContain("autoplay=0");
+    expect(video?.embedSrc).not.toContain("autoplay=1");
     expect(video?.embedSrc).not.toContain("danmaku");
     expect(video?.embedSrc).not.toContain("bad=1");
+  });
+
+  it("normalizes a Bilibili mobile player URL and forces autoplay off", () => {
+    const video = parseVideoUrl(
+      "https://www.bilibili.com/blackboard/html5mobileplayer.html?bvid=BV1v5411G7Ep&page=2&autoplay=1",
+    );
+
+    expect(video?.embedSrc).toContain("https://www.bilibili.com/blackboard/html5mobileplayer.html?");
+    expect(video?.embedSrc).toContain("bvid=BV1v5411G7Ep");
+    expect(video?.embedSrc).toContain("page=2");
+    expect(video?.embedSrc).toContain("autoplay=0");
+    expect(video?.embedSrc).not.toContain("autoplay=1");
   });
 
   it("rejects unsafe, unsupported, and Tencent URLs", () => {
