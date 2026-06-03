@@ -12,7 +12,7 @@ type SqlRunner = Pick<ReturnType<typeof getDb>, "execute">;
 
 export async function ensureAccountIdSequences(runner: SqlRunner = getDb()) {
   await runner.execute(sql`
-    INSERT IGNORE INTO account_id_sequences (name, nextValue, maxValue, updatedAt)
+    INSERT IGNORE INTO account_id_sequences (\`name\`, \`nextValue\`, \`maxValue\`, \`updatedAt\`)
     VALUES
       ('admin_public_id', ${FIRST_ADMIN_PUBLIC_ID}, ${MAX_ADMIN_PUBLIC_ID}, NOW()),
       ('user_public_id', ${FIRST_USER_PUBLIC_ID}, ${MAX_USER_PUBLIC_ID}, NOW())
@@ -23,8 +23,8 @@ export async function allocatePublicId(runner: SqlRunner, sequenceName: Sequence
   await ensureAccountIdSequences(runner);
   const result = await runner.execute(sql`
     UPDATE account_id_sequences
-    SET nextValue = LAST_INSERT_ID(nextValue) + 1, updatedAt = NOW()
-    WHERE name = ${sequenceName} AND nextValue <= maxValue
+    SET \`nextValue\` = LAST_INSERT_ID(\`nextValue\`) + 1, \`updatedAt\` = NOW()
+    WHERE \`name\` = ${sequenceName} AND \`nextValue\` <= \`maxValue\`
   `);
 
   const affectedRows = Array.isArray(result) && "affectedRows" in result[0]

@@ -63,7 +63,7 @@ async function seed() {
 
   // Create email test users with randomly generated passwords
   await db.execute(sql`
-    INSERT IGNORE INTO account_id_sequences (name, nextValue, maxValue, updatedAt)
+    INSERT IGNORE INTO account_id_sequences (\`name\`, \`nextValue\`, \`maxValue\`, \`updatedAt\`)
     VALUES
       ('admin_public_id', 100002, 100100, NOW()),
       ('user_public_id', 100101, 999999, NOW())
@@ -109,13 +109,13 @@ async function seed() {
 
   await db.execute(sql`
     UPDATE account_id_sequences
-    SET nextValue = CASE
-      WHEN name = 'admin_public_id' THEN ${nextAdminPublicId}
-      WHEN name = 'user_public_id' THEN ${nextUserPublicId}
-      ELSE nextValue
+    SET \`nextValue\` = CASE
+      WHEN \`name\` = 'admin_public_id' THEN ${nextAdminPublicId}
+      WHEN \`name\` = 'user_public_id' THEN ${nextUserPublicId}
+      ELSE \`nextValue\`
     END,
-    updatedAt = NOW()
-    WHERE name IN ('admin_public_id', 'user_public_id')
+    \`updatedAt\` = NOW()
+    WHERE \`name\` IN ('admin_public_id', 'user_public_id')
   `);
 
   // Create posts

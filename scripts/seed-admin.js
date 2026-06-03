@@ -33,7 +33,7 @@ function createConnectionOptions(databaseUrl) {
 
 async function ensureSequences(connection) {
   await connection.execute(
-    `INSERT IGNORE INTO account_id_sequences (name, nextValue, maxValue, updatedAt)
+    `INSERT IGNORE INTO account_id_sequences (\`name\`, \`nextValue\`, \`maxValue\`, \`updatedAt\`)
      VALUES
        ('admin_public_id', ?, ?, NOW()),
        ('user_public_id', ?, ?, NOW())`,
@@ -116,7 +116,7 @@ async function main() {
   }
 
   await connection.execute(
-    "UPDATE account_id_sequences SET nextValue = GREATEST(nextValue, ?), updatedAt = NOW() WHERE name = 'admin_public_id'",
+    "UPDATE account_id_sequences SET `nextValue` = GREATEST(`nextValue`, ?), `updatedAt` = NOW() WHERE `name` = 'admin_public_id'",
     [FIRST_ADMIN_PUBLIC_ID],
   );
 
