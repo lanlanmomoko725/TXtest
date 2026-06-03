@@ -20,7 +20,8 @@ export async function authenticateRequest(headers: Headers, resHeaders: Headers)
   if (accessToken) {
     const claim = await verifyAccessToken(accessToken);
     if (claim?.userId) {
-      return findUserById(claim.userId) ?? undefined;
+      const user = await findUserById(claim.userId);
+      if (user && user.sessionVersion === claim.sessionVersion) return user;
     }
   }
 
@@ -29,8 +30,10 @@ export async function authenticateRequest(headers: Headers, resHeaders: Headers)
   if (refreshToken) {
     const claim = await verifyRefreshToken(refreshToken);
     if (claim?.userId) {
+      const user = await findUserById(claim.userId);
+      if (!user || user.sessionVersion !== claim.sessionVersion) return undefined;
       // Issue new access token transparently
-      const newAccessToken = await signAccessToken(claim.userId);
+      const newAccessToken = await signAccessToken(claim.userId, user.sessionVersion);
       const opts = getSessionCookieOptions(headers);
       resHeaders.append(
         "set-cookie",
@@ -42,7 +45,7 @@ export async function authenticateRequest(headers: Headers, resHeaders: Headers)
           maxAge: Session.accessMaxAgeMs / 1000,
         }),
       );
-      return findUserById(claim.userId) ?? undefined;
+      return user;
     }
   }
 

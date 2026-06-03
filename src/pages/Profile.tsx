@@ -31,6 +31,7 @@ export default function Profile() {
   const { user: currentUser, refresh } = useAuth();
 
   const isMe = currentUser?.id === userId;
+  const canUploadAvatar = !!currentUser && currentUser.level >= 99;
 
   const { data: posts, isLoading: postsLoading } = trpc.post.list.useQuery(
     { authorId: userId, limit: 24, offset: 0 },
@@ -74,7 +75,7 @@ export default function Profile() {
     }
     updateProfile.mutate({
       name: editName.trim(),
-      avatar: editAvatar.trim() || undefined,
+      avatar: canUploadAvatar ? editAvatar.trim() || undefined : undefined,
     });
   };
 
@@ -135,7 +136,7 @@ export default function Profile() {
                   {(isEditing ? editName : displayUser.name || "用户").slice(0, 1)}
                 </AvatarFallback>
               </Avatar>
-              {isEditing && (
+              {isEditing && canUploadAvatar && (
                 <button
                   onClick={() => fileRef.current?.click()}
                   className="absolute -bottom-1 -right-1 p-1.5 bg-sky-600 text-white rounded-full shadow-sm hover:bg-sky-700 transition-colors"
@@ -144,14 +145,16 @@ export default function Profile() {
                   <Camera className="h-3.5 w-3.5" />
                 </button>
               )}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={uploading}
-              />
+              {canUploadAvatar && (
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+              )}
             </div>
             <div className="text-center md:text-left flex-1">
               <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
@@ -177,15 +180,18 @@ export default function Profile() {
                 ) : (
                   <>
                     <h1 className="text-2xl font-bold text-foreground">{displayUser.name || "匿名用户"}</h1>
-                    {displayUser.role === "admin" && (
+                    {(displayUser.role === "admin" || displayUser.role === "super_admin") && (
                       <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
                         <Star className="h-3 w-3 mr-1" />
-                        管理员
+                        {displayUser.role === "super_admin" ? "超级管理员" : "管理员"}
                       </Badge>
                     )}
                   </>
                 )}
               </div>
+              {displayUser.publicId ? (
+                <p className="text-xs text-muted-foreground mb-2">用户 ID：{displayUser.publicId} · L{displayUser.level}</p>
+              ) : null}
               <p className="text-muted-foreground text-sm mb-3">
                 注册于 {new Date(displayUser.createdAt).toLocaleDateString("zh-CN")}
               </p>

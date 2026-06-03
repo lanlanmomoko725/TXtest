@@ -1,6 +1,6 @@
 import { getDb } from "../api/queries/connection";
 import * as schema from "./schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import fs from "fs";
@@ -62,6 +62,13 @@ async function seed() {
   }
 
   // Create email test users with randomly generated passwords
+  await db.execute(sql`
+    INSERT IGNORE INTO account_id_sequences (name, nextValue, maxValue, updatedAt)
+    VALUES
+      ('admin_public_id', 100002, 100100, NOW()),
+      ('user_public_id', 100101, 999999, NOW())
+  `);
+
   const testUsers = [
     { name: "追云者", email: "user1@tianxiang.com", role: "user" as const },
     { name: "天际观测员", email: "user2@tianxiang.com", role: "user" as const },
@@ -74,17 +81,23 @@ async function seed() {
 
   const accountRecords: { name: string; email: string; password: string; role: string }[] = [];
   const userIds: number[] = [];
+  let nextAdminPublicId = 100002;
+  let nextUserPublicId = 100101;
 
   for (const user of testUsers) {
     const password = generatePassword(10);
     const hashedPassword = await bcrypt.hash(password, 10);
+    const publicId = user.role === "admin" ? nextAdminPublicId++ : nextUserPublicId++;
     const [{ id }] = await db.insert(schema.users).values({
+      publicId,
       name: user.name,
       email: user.email,
       password: hashedPassword,
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email.split("@")[0]}`,
       role: user.role,
+      level: user.role === "admin" ? 99 : 0,
       emailVerified: true,
+      sessionVersion: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignInAt: new Date(),
@@ -93,6 +106,17 @@ async function seed() {
     accountRecords.push({ name: user.name, email: user.email, password, role: user.role });
     console.log(`Created user: ${user.name} (ID: ${id}) - ${user.email}`);
   }
+
+  await db.execute(sql`
+    UPDATE account_id_sequences
+    SET nextValue = CASE
+      WHEN name = 'admin_public_id' THEN ${nextAdminPublicId}
+      WHEN name = 'user_public_id' THEN ${nextUserPublicId}
+      ELSE nextValue
+    END,
+    updatedAt = NOW()
+    WHERE name IN ('admin_public_id', 'user_public_id')
+  `);
 
   // Create posts
   const posts = [

@@ -14,7 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function SkyGalleryPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = !!user && user.level >= 99;
   const isMobile = useIsMobile();
   const autoOpenRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => {

@@ -1,246 +1,117 @@
-# 天象志 - Docker 部署指南
+# 天象志部署指南
 
-## 前置要求
+## 默认部署模式
 
-- 一台云服务器（建议 2C4G 以上配置）
-- 安装 Docker 和 Docker Compose
-- 一个域名（可选，推荐配置）
+当前默认使用 Docker Compose 内置 MySQL，`docker-compose.yml` 会启动：
 
-## 安装 Docker（CentOS/Ubuntu）
+- `app`：Hono/tRPC + Vite 构建后的应用，宿主机调试端口 `3000`
+- `db`：MySQL 8.0，宿主机端口 `3306`
+- `nginx`：反向代理，宿主机端口 `80`
 
-```bash
-curl -fsSL https://get.docker.com | sh
-sudo systemctl enable docker
-sudo systemctl start docker
-sudo usermod -aG docker $USER
-```
+生产暂不使用阿里云 RDS。以后如果重新切回外部数据库，只需要把 `.env.local` 的 `DATABASE_URL` 指向外部 MySQL，并按需移除 compose 里的 `db` 服务。
 
-## 部署方式一：使用内置 MySQL（快速开始）
-
-### 1. 上传代码到服务器
+## 环境变量
 
 ```bash
-# 方式 A：git 克隆
-git clone <你的仓库地址> /opt/tianxiang
-cd /opt/tianxiang
-
-# 方式 B：直接上传 zip，解压
-cd /opt/tianxiang
+cp .env.local.example .env.local
+nano .env.local
 ```
 
-### 2. 配置环境变量
+本地 MySQL 默认示例：
+
+```env
+APP_SECRET=至少32位随机密钥
+
+MYSQL_ROOT_PASSWORD=强root密码
+MYSQL_DATABASE=skyweb
+MYSQL_USER=skyweb
+MYSQL_PASSWORD=强应用密码
+DATABASE_URL=mysql://skyweb:强应用密码@db:3306/skyweb
+
+EMAIL_AUTH_ENABLED=true
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_USER=no-reply@example.com
+SMTP_PASS=邮箱授权码或应用密码
+SMTP_FROM="天象志 <no-reply@example.com>"
+
+ALIYUN_CAPTCHA_SCENE_ID=阿里云验证码场景ID
+ALIYUN_CAPTCHA_PREFIX=阿里云验证码身份标
+ALIYUN_CAPTCHA_REGION=cn
+# ALIYUN_CAPTCHA_REGION 只能填 cn 或 sgp；需要双栈或自定义 endpoint 时再配置下一行。
+# ALIYUN_CAPTCHA_ENDPOINT=captcha-dualstack.cn-shanghai.aliyuncs.com
+ALIBABA_CLOUD_ACCESS_KEY_ID=RAM用户AccessKeyId
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=RAM用户AccessKeySecret
+
+COMMENT_BLOCKLIST=词1,词2
+COOKIE_SAMESITE=Lax
+```
+
+阿里云验证码请使用 RAM 用户 AccessKey，不要使用主账号 AccessKey；该 RAM 用户至少需要验证码服务调用权限，建议授予 `AliyunYundunAFSFullAccess`。
+
+`COMMENT_BLOCKLIST` 使用英文逗号分隔。可选 `COMMENT_BLOCK_PATTERNS` 支持简单正则，命中后评论会被拒发且不会保存。
+
+## 首次部署
 
 ```bash
-cp .env .env.local
-# 编辑 .env.local，修改以下关键项：
-# - DATABASE_URL=mysql://tianxiang:tianxiang456@db:3306/tianxiang
-# - DB_ROOT_PASSWORD=你的root密码
-# - DB_PASSWORD=你的数据库密码
-```
-
-如果 MySQL 用 docker-compose 里的内置服务，`DATABASE_URL` 填：
-```
-mysql://tianxiang:tianxiang456@db:3306/tianxiang
-```
-> `@db` 中的 `db` 是 docker-compose 中的服务名，Docker 会自动解析为容器 IP
-
-### 3. 启动
-
-```bash
-docker compose up -d
-```
-
-首次启动会自动：
-- 拉取 Node.js 和 MySQL 镜像
-- 构建应用镜像
-- 创建数据库
-- 启动服务
-
-### 4. 初始化数据库
-
-```bash
-# 进入应用容器执行数据库同步
-docker compose exec app npx drizzle-kit push
-
-# 如果需要填充测试数据
-docker compose exec app npx tsx db/seed.ts
-```
-
-### 5. 访问
-
-打开浏览器访问 `http://你的服务器IP/`
-
----
-
-## 部署方式二：使用外部 MySQL（生产推荐）
-
-如果你使用云数据库（如阿里云 RDS、TiDB Cloud），不需要启动内置 MySQL：
-
-### 修改 docker-compose.yml
-
-```yaml
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: tianxiang-app
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env.local
-    volumes:
-      - ./uploads:/app/dist/public/uploads
-    restart: unless-stopped
-    # 删除 depends_on db
-    networks:
-      - tianxiang-network
-
-  # 注释掉或删除 db 服务
-  # db:
-  #   ...
-
-  # 可选：Nginx
-  # nginx:
-  #   ...
-
-# 注释掉 volumes mysql-data
-# volumes:
-#   mysql-data:
-```
-
-`.env.local` 中的 `DATABASE_URL` 指向你的外部数据库地址即可。
-
----
-
-## 常用运维命令
-
-```bash
-# 查看运行状态
-docker compose ps
-
-# 查看日志
-docker compose logs -f app          # 应用日志
-docker compose logs -f db           # 数据库日志
-docker compose logs -f --tail 100   # 最近 100 行
-
-# 重启服务
-docker compose restart app
-
-# 停止所有服务
-docker compose down
-
-# 停止并删除数据卷（注意：会清空数据库！）
-docker compose down -v
-
-# 重新构建（代码更新后）
+cd /opt/TXtest
 docker compose up -d --build
-
-# 进入容器内部
-docker compose exec app sh
-
-# 备份数据库
-docker compose exec db mysqldump -u root -p tianxiang > backup.sql
-
-# 恢复数据库
-docker compose exec -T db mysql -u root -p tianxiang < backup.sql
-```
-
----
-
-## 更新迭代流程
-
-当代码有更新时，服务器上的操作只需 3 步：
-
-```bash
-cd /opt/tianxiang
-git pull                    # 拉取最新代码
-docker compose up -d --build # 重新构建并启动
-```
-
-全程约 2-3 分钟，零停机（Docker 先启动新容器再停止旧容器）。
-
----
-
-## HTTPS 配置（推荐）
-
-### 方式 A：Nginx + Let's Encrypt（免费证书）
-
-```bash
-# 在宿主机安装 certbot
-docker run -it --rm \
-  -v ./certbot-data:/etc/letsencrypt \
-  -v ./nginx-data:/etc/nginx \
-  certbot/certbot certonly --standalone -d your-domain.com
-
-# 修改 nginx.conf 启用 SSL 端口 443
-# 然后重启
-docker compose restart nginx
-```
-
-### 方式 B：使用云服务商负载均衡
-
-在阿里云/腾讯云控制台配置负载均衡 + HTTPS 证书，后端指向服务器的 3000 端口即可。
-
----
-
-## 文件说明
-
-| 文件 | 说明 |
-|------|------|
-| `Dockerfile` | 应用镜像构建配置（多阶段构建，优化体积） |
-| `docker-compose.yml` | 全栈编排（App + MySQL + Nginx） |
-| `nginx.conf` | Nginx 反向代理配置 |
-| `.env.local` | 环境变量（部署前需配置） |
-
----
-
-## 数据持久化说明
-
-以下数据会持久化到宿主机，容器重建不会丢失：
-
-| 数据 | 宿主机路径 | 说明 |
-|------|-----------|------|
-| 用户上传的图片 | `./uploads` | 帖子图片、头像等 |
-| MySQL 数据 | `mysql-data` Docker 卷 | 所有业务数据 |
-| SSL 证书 | `./ssl` | HTTPS 证书文件 |
-
----
-
-## 故障排查
-
-```bash
-# 容器启动失败，看详细日志
-docker compose logs app --no-color
-
-# 数据库连接不上
-docker compose exec app sh -c 'npx drizzle-kit push'
-# 检查 DATABASE_URL 是否正确
-
-# 端口被占用
-sudo lsof -i :3000
-sudo systemctl stop nginx  # 如果宿主机有 Nginx 冲突
-
-# 磁盘空间满了
-docker system prune -a      # 清理未使用的镜像和容器
-docker volume prune         # 清理未使用的数据卷
-```
-
-## 当前账号模式：管理员邀请制
-
-当前部署暂不开放公开邮箱验证码注册，生产环境也不再要求配置 SMTP。首次部署时先创建初始管理员：
-
-```bash
+docker compose ps
+docker compose exec app npx drizzle-kit push
 docker compose exec app node scripts/seed-admin.js
+curl -i http://127.0.0.1/
 ```
 
-初始管理员登录后，通过 `/admin/users` 创建内部用户账号并分发初始密码。后续如需恢复邮箱验证码注册，再补充 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_FROM` 并重新启用公开注册入口。
+`scripts/seed-admin.js` 会创建第一个超级管理员：
 
-如果线上因为缺少 SMTP 配置导致旧容器启动失败，更新代码后执行：
+- 不需要邮箱验证码。
+- 邮箱会绑定到账号。
+- 外显用户 ID 固定为 `100001`。
+- 角色为 `super_admin`，等级为 `L99`。
+
+超级管理员登录后，在 `/admin/users` 添加管理员邮箱预授权。被添加邮箱的用户自行注册并通过邮箱验证码后，会自动成为 `admin/L99`。未匹配预授权邮箱的注册用户为 `user/L0`，普通用户只开放评论权限。
+
+如果是从旧库迁移，先执行 schema 同步，再执行账号回填：
 
 ```bash
-docker compose up -d --build --force-recreate app nginx
+docker compose exec app npx drizzle-kit push
+docker compose exec app node scripts/backfill-account-ids.js
+```
+
+## 更新部署
+
+```bash
+cd /opt/TXtest
+git pull
+docker compose up -d --build
+docker compose exec app npx drizzle-kit push
+docker compose ps
 docker compose logs --tail=80 app
+curl -i http://127.0.0.1/
+```
+
+## 常用排查
+
+```bash
+docker compose ps
+docker compose logs -f app
+docker compose logs -f db
+docker compose logs -f nginx
+docker compose exec app npx drizzle-kit push
 curl -i http://127.0.0.1:3000/
 curl -i http://127.0.0.1/
 ```
+
+如果容器无法启动，重点检查：
+
+- `APP_SECRET` 是否至少 32 位。
+- `DATABASE_URL` 是否使用 `@db:3306`，并且 `MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE` 一致。
+- 服务器 80、3000、3306 端口是否被其他服务占用。
+- SMTP 和阿里云验证码配置是否完整。
+- 如配置 `ALLOWED_ORIGINS`，必须与浏览器访问的 origin 完全一致。
+
+## 数据持久化
+
+- 用户上传文件挂载在宿主机 `./uploads`。
+- MySQL 数据保存在 Docker volume `mysql-data`。
+- 容器重建不会删除上传文件或数据库数据；执行 `docker compose down -v` 才会删除 MySQL volume。

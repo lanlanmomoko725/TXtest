@@ -1,8 +1,10 @@
-import { count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray, or } from "drizzle-orm";
 import * as schema from "@db/schema";
 
 import { getDb } from "./connection";
 import { toAdminUser, toPublicUser } from "../lib/user-dto";
+
+export type UserRole = "user" | "admin" | "super_admin";
 
 export async function findUserById(id: number) {
   const rows = await getDb()
@@ -27,7 +29,9 @@ export async function createEmailUser(data: {
   email: string;
   password: string;
   avatar?: string;
-  role?: "user" | "admin";
+  role?: UserRole;
+  publicId?: number;
+  level?: number;
 }) {
   const [{ id }] = await getDb()
     .insert(schema.users)
@@ -37,7 +41,10 @@ export async function createEmailUser(data: {
       password: data.password,
       avatar: data.avatar || null,
       role: data.role || "user",
+      publicId: data.publicId ?? null,
+      level: data.level ?? (data.role === "admin" || data.role === "super_admin" ? 99 : 0),
       emailVerified: true,
+      sessionVersion: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignInAt: new Date(),
@@ -49,7 +56,7 @@ export async function createEmailUser(data: {
 
 export async function updateUser(
   id: number,
-  data: { name?: string; avatar?: string; role?: "user" | "admin" }
+  data: { name?: string; avatar?: string; role?: UserRole; level?: number; sessionVersion?: number; lockedUntil?: Date | null }
 ) {
   await getDb()
     .update(schema.users)
@@ -83,7 +90,7 @@ export async function findAdminCount(): Promise<number> {
   const result = await getDb()
     .select({ value: count() })
     .from(schema.users)
-    .where(eq(schema.users.role, "admin"));
+    .where(or(eq(schema.users.role, "admin"), eq(schema.users.role, "super_admin")));
   return result[0]?.value ?? 0;
 }
 
@@ -94,9 +101,11 @@ export async function findPublicUsersByIds(ids: number[]) {
   const rows = await getDb()
     .select({
       id: schema.users.id,
+      publicId: schema.users.publicId,
       name: schema.users.name,
       avatar: schema.users.avatar,
       role: schema.users.role,
+      level: schema.users.level,
       createdAt: schema.users.createdAt,
     })
     .from(schema.users)

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,40 +14,50 @@ import { CATEGORY_LABEL_MAP } from "@contracts/constants";
 import {
   ArrowLeft,
   Calendar,
+  ChevronRight,
   Eye,
+  Loader2,
   MapPin,
   MessageCircle,
-  Star,
+  Reply,
   Send,
+  Star,
   Trash2,
-  Loader2,
   User,
-  ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
-  const postId = parseInt(id || "0");
+  const postId = parseInt(id || "0", 10);
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const [commentContent, setCommentContent] = useState("");
+  const [replyContent, setReplyContent] = useState("");
+  const [replyTarget, setReplyTarget] = useState<{ id: number; name: string } | null>(null);
+  const [commentError, setCommentError] = useState("");
 
   const { data: post, isLoading: postLoading } = trpc.post.byId.useQuery(
     { id: postId },
-    { enabled: postId > 0 }
+    { enabled: postId > 0 },
   );
 
   const { data: comments, isLoading: commentsLoading, refetch: refetchComments } =
-    trpc.comment.list.useQuery(
-      { postId },
-      { enabled: postId > 0 }
-    );
+    trpc.comment.list.useQuery({ postId }, { enabled: postId > 0 });
 
   const utils = trpc.useUtils();
   const createComment = trpc.comment.create.useMutation({
     onSuccess: () => {
       setCommentContent("");
+      setReplyContent("");
+      setReplyTarget(null);
+      setCommentError("");
+      refetchComments();
+    },
+    onError: (err) => setCommentError(err.message),
+  });
+
+  const deleteComment = trpc.comment.delete.useMutation({
+    onSuccess: () => {
       refetchComments();
     },
   });
@@ -64,9 +75,26 @@ export default function PostDetail() {
     },
   });
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = !!user && user.level >= 99;
   const isAuthor = post?.authorId === user?.id;
   const isSkyGallery = !!post?.skyGalleryCategory;
+  const commentTotal = comments?.reduce((total, comment) => total + 1 + comment.replies.length, 0) ?? 0;
+
+  const handleCreateComment = (content: string, replyToCommentId?: number) => {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    setCommentError("");
+    createComment.mutate({ postId, content: trimmed, replyToCommentId });
+  };
+
+  const handleDeleteComment = (id: number, hasReplies: boolean) => {
+    const message = hasReplies
+      ? "确定删除这条评论及其所有回复吗？删除后不可恢复。"
+      : "确定删除这条评论吗？删除后不可恢复。";
+    if (confirm(message)) {
+      deleteComment.mutate({ id });
+    }
+  };
 
   if (postLoading) {
     return (
@@ -98,7 +126,6 @@ export default function PostDetail() {
     <TooltipProvider>
       <div className="min-h-screen bg-background">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-3 sm:py-8">
-          {/* Breadcrumb */}
           <nav aria-label="面包屑" className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 sm:mb-6">
             <Link to="/" className="hover:text-primary transition-colors rounded focus-visible:ring-2 focus-visible:ring-ring px-1 -ml-1">
               首页
@@ -122,7 +149,6 @@ export default function PostDetail() {
             <span className="text-foreground truncate max-w-[200px] sm:max-w-sm">{post.title}</span>
           </nav>
 
-          {/* Post Header */}
           <header className="mb-6 sm:mb-8">
             {!isSkyGallery && (
               <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -229,7 +255,6 @@ export default function PostDetail() {
             </div>
           </header>
 
-          {/* Content */}
           <article className="max-w-none mb-6">
             <TagContent
               html={post.content}
@@ -237,14 +262,12 @@ export default function PostDetail() {
             />
           </article>
 
-          {/* Images */}
           {!post.isArticle && images.length > 0 && (
             <div className="mb-6">
               <ImageGallery images={images} alt={post.title} />
             </div>
           )}
 
-          {/* Location */}
           {!isSkyGallery && post.hasLocation && post.region && (
             <div className="flex items-center gap-2 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 mb-8 text-sm text-emerald-700 dark:text-emerald-400">
               <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
@@ -256,18 +279,16 @@ export default function PostDetail() {
 
           <Separator className="my-8 bg-gradient-to-r from-transparent via-border to-transparent" />
 
-          {/* Comments */}
           <section className="mb-8">
             <h3 className="text-lg font-bold text-foreground mb-5 flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
-              评论 ({comments?.length || 0})
+              评论 ({commentTotal})
             </h3>
 
-            {/* Comment Form */}
             {isAuthenticated ? (
               <div className="mb-8 p-4 sm:p-5 rounded-xl bg-muted/40 border border-border/50">
                 <Textarea
-                  placeholder="写下你的评论…"
+                  placeholder="写下你的评论..."
                   value={commentContent}
                   onChange={(e) => setCommentContent(e.target.value)}
                   className="mb-3 bg-background border-border/60 focus-visible:ring-2 focus-visible:ring-primary/30 resize-none"
@@ -275,10 +296,7 @@ export default function PostDetail() {
                 />
                 <div className="flex justify-end">
                   <Button
-                    onClick={() => {
-                      if (!commentContent.trim()) return;
-                      createComment.mutate({ postId, content: commentContent.trim() });
-                    }}
+                    onClick={() => handleCreateComment(commentContent)}
                     disabled={createComment.isPending || !commentContent.trim()}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
                   >
@@ -290,6 +308,9 @@ export default function PostDetail() {
                     发表评论
                   </Button>
                 </div>
+                {commentError && !replyTarget && (
+                  <p className="mt-3 text-sm text-destructive">{commentError}</p>
+                )}
               </div>
             ) : (
               <div className="mb-8 p-5 rounded-xl bg-muted/40 border border-border/50 text-center text-sm text-muted-foreground">
@@ -300,32 +321,167 @@ export default function PostDetail() {
               </div>
             )}
 
-            {/* Comment List */}
             {commentsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : comments && comments.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-3 p-4 rounded-xl bg-muted/30 border border-border/40 hover:bg-muted/50 transition-colors">
-                    <Avatar className="h-9 w-9 flex-shrink-0 border border-border/50">
-                      <AvatarImage src={comment.author?.avatar || undefined} />
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        <User className="h-4 w-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm text-foreground">
-                          {comment.author?.name || "匿名用户"}
-                        </span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {new Date(comment.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
-                        </span>
+                  <div key={comment.id} className="rounded-xl bg-muted/30 border border-border/40 p-4 transition-colors hover:bg-muted/50">
+                    <div className="flex gap-3">
+                      <Avatar className="h-9 w-9 flex-shrink-0 border border-border/50">
+                        <AvatarImage src={comment.author?.avatar || undefined} />
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          <User className="h-4 w-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="font-medium text-sm text-foreground">
+                            {comment.author?.name || "匿名用户"}
+                          </span>
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {new Date(comment.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+                        <div className="mt-2 flex items-center gap-3 text-xs">
+                          {isAuthenticated && (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
+                              onClick={() => {
+                                setReplyTarget({ id: comment.id, name: comment.author?.name || "匿名用户" });
+                                setReplyContent("");
+                                setCommentError("");
+                              }}
+                            >
+                              <Reply className="h-3.5 w-3.5" />
+                              回复
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDeleteComment(comment.id, comment.replies.length > 0)}
+                              disabled={deleteComment.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              删除
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-sm text-foreground/80 leading-relaxed">{comment.content}</p>
                     </div>
+
+                    {replyTarget?.id === comment.id && (
+                      <div className="mt-3 ml-12 rounded-lg border border-border/50 bg-background/70 p-3">
+                        <Textarea
+                          placeholder={`回复 ${replyTarget.name}...`}
+                          value={replyContent}
+                          onChange={(e) => setReplyContent(e.target.value)}
+                          className="mb-2 min-h-20 resize-none bg-background"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setReplyTarget(null)}>
+                            取消
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCreateComment(replyContent, replyTarget.id)}
+                            disabled={createComment.isPending || !replyContent.trim()}
+                          >
+                            {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+                            回复
+                          </Button>
+                        </div>
+                        {commentError && <p className="mt-2 text-sm text-destructive">{commentError}</p>}
+                      </div>
+                    )}
+
+                    {comment.replies.length > 0 && (
+                      <div className="mt-3 ml-12 space-y-2 rounded-lg bg-background/60 p-3">
+                        {comment.replies.map((reply) => (
+                          <div key={reply.id} className="flex gap-2 rounded-md p-2 hover:bg-muted/40">
+                            <Avatar className="h-7 w-7 flex-shrink-0 border border-border/50">
+                              <AvatarImage src={reply.author?.avatar || undefined} />
+                              <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
+                                {(reply.author?.name || "用户").slice(0, 1)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-medium text-foreground">
+                                  {reply.author?.name || "匿名用户"}
+                                </span>
+                                <span className="text-xs text-muted-foreground tabular-nums">
+                                  {new Date(reply.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                                {reply.replyToUser && (
+                                  <span className="mr-1 text-primary">@{reply.replyToUser.name || "匿名用户"}</span>
+                                )}
+                                {reply.content}
+                              </p>
+                              <div className="mt-1 flex items-center gap-3 text-xs">
+                                {isAuthenticated && (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
+                                    onClick={() => {
+                                      setReplyTarget({ id: reply.id, name: reply.author?.name || "匿名用户" });
+                                      setReplyContent("");
+                                      setCommentError("");
+                                    }}
+                                  >
+                                    <Reply className="h-3.5 w-3.5" />
+                                    回复
+                                  </button>
+                                )}
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-destructive"
+                                    onClick={() => handleDeleteComment(reply.id, false)}
+                                    disabled={deleteComment.isPending}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    删除
+                                  </button>
+                                )}
+                              </div>
+                              {replyTarget?.id === reply.id && (
+                                <div className="mt-2 rounded-lg border border-border/50 bg-background p-3">
+                                  <Textarea
+                                    placeholder={`回复 @${replyTarget.name}...`}
+                                    value={replyContent}
+                                    onChange={(e) => setReplyContent(e.target.value)}
+                                    className="mb-2 min-h-20 resize-none bg-background"
+                                  />
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button variant="ghost" size="sm" onClick={() => setReplyTarget(null)}>
+                                      取消
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleCreateComment(replyContent, replyTarget.id)}
+                                      disabled={createComment.isPending || !replyContent.trim()}
+                                    >
+                                      {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+                                      回复
+                                    </Button>
+                                  </div>
+                                  {commentError && <p className="mt-2 text-sm text-destructive">{commentError}</p>}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

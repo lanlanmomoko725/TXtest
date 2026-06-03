@@ -6,13 +6,15 @@ const JWT_ALG = "HS256";
 export type SessionPayload = {
   type: "access" | "refresh";
   userId?: number;
+  sessionVersion?: number;
 };
 
 export async function signAccessToken(
   userId: number,
+  sessionVersion: number,
 ): Promise<string> {
   const secret = new TextEncoder().encode(env.appSecret);
-  return new jose.SignJWT({ type: "access", userId } as unknown as jose.JWTPayload)
+  return new jose.SignJWT({ type: "access", userId, sessionVersion } as unknown as jose.JWTPayload)
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
     .setExpirationTime("15 min")
@@ -21,9 +23,10 @@ export async function signAccessToken(
 
 export async function signRefreshToken(
   userId: number,
+  sessionVersion: number,
 ): Promise<string> {
   const secret = new TextEncoder().encode(env.appSecret);
-  return new jose.SignJWT({ type: "refresh", userId } as unknown as jose.JWTPayload)
+  return new jose.SignJWT({ type: "refresh", userId, sessionVersion } as unknown as jose.JWTPayload)
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
     .setExpirationTime("7 days")

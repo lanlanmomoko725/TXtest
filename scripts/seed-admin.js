@@ -1,99 +1,130 @@
 import "dotenv/config";
 import mysql from "mysql2/promise";
 import bcrypt from "bcryptjs";
+import { readFileSync } from "fs";
+
+const SUPER_ADMIN_PUBLIC_ID = 100001;
+const FIRST_ADMIN_PUBLIC_ID = 100002;
+const MAX_ADMIN_PUBLIC_ID = 100100;
+const FIRST_USER_PUBLIC_ID = 100101;
+const MAX_USER_PUBLIC_ID = 999999;
+
+function validatePassword(password) {
+  return password.length >= 8 && /[0-9]/.test(password) && /[a-z]/.test(password) && /[A-Z]/.test(password);
+}
+
+function createConnectionOptions(databaseUrl) {
+  const url = new URL(databaseUrl);
+  const ssl = process.env.DATABASE_SSL_CA_PATH
+    ? { ca: readFileSync(process.env.DATABASE_SSL_CA_PATH, "utf8") }
+    : process.env.DATABASE_SSL === "true" || process.env.DATABASE_SSL === "require"
+      ? {}
+      : undefined;
+
+  return {
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.slice(1),
+    ssl,
+  };
+}
+
+async function ensureSequences(connection) {
+  await connection.execute(
+    `INSERT IGNORE INTO account_id_sequences (name, nextValue, maxValue, updatedAt)
+     VALUES
+       ('admin_public_id', ?, ?, NOW()),
+       ('user_public_id', ?, ?, NOW())`,
+    [FIRST_ADMIN_PUBLIC_ID, MAX_ADMIN_PUBLIC_ID, FIRST_USER_PUBLIC_ID, MAX_USER_PUBLIC_ID],
+  );
+}
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    console.error("❌ DATABASE_URL is not set in environment or .env file");
+    console.error("DATABASE_URL is not set in environment or .env file");
     process.exit(1);
   }
 
-  // Parse the MySQL connection string
-  // mysql://user:password@host:port/database
-  const url = new URL(databaseUrl);
-  const dbUser = decodeURIComponent(url.username);
-  const dbPassword = decodeURIComponent(url.password);
-  const host = url.hostname;
-  const port = parseInt(url.port || "3306");
-  const database = url.pathname.slice(1);
+  const connectionOptions = createConnectionOptions(databaseUrl);
+  console.log(`Connecting to MySQL at ${connectionOptions.host}:${connectionOptions.port}/${connectionOptions.database} ...`);
 
-  console.log(`🔌 Connecting to MySQL at ${host}:${port}/${database} ...`);
+  const connection = await mysql.createConnection(connectionOptions);
+  console.log("Connected to database");
 
-  const connection = await mysql.createConnection({ host, port, user: dbUser, password: dbPassword, database });
-  console.log("✅ Connected to database");
+  await ensureSequences(connection);
 
-  // Check if any admin already exists
-  const [rows] = await connection.execute(
-    "SELECT COUNT(*) AS count FROM users WHERE role = 'admin'",
-  );
-  const adminCount = rows[0].count;
-
-  if (adminCount > 0) {
-    console.log(`⚠️  There are already ${adminCount} admin(s) in the database.`);
-    console.log("   You can manage admins via the /admin/users page.");
-    console.log("   If you need to create a new admin, use that page instead.");
+  const [superRows] = await connection.execute("SELECT COUNT(*) AS count FROM users WHERE role = 'super_admin'");
+  if (Number(superRows[0]?.count ?? 0) > 0) {
+    console.log("A super administrator already exists. No changes were made.");
     await connection.end();
-    process.exit(0);
+    return;
   }
 
-  // No admin exists, prompt for credentials
   const readline = (await import("readline")).default;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
   const ask = (query) => new Promise((resolve) => rl.question(query, resolve));
 
-  console.log("\n📝 No admin found. Let's create the first admin account.\n");
+  console.log("\nNo super administrator found. Create the first account.\n");
 
-  const email = await ask("Email: ");
+  const email = String(await ask("Email: ")).trim().toLowerCase();
   if (!email || !email.includes("@")) {
-    console.error("❌ Invalid email address");
+    console.error("Invalid email address");
     await connection.end();
     process.exit(1);
   }
 
-  const name = await ask("Display name: ") || "Admin";
+  const name = String(await ask("Display name: ")).trim() || "Super Admin";
 
   let password = "";
-  while (password.length < 6) {
-    password = await ask("Password (min 6 chars): ");
-    if (password.length < 6) {
-      console.log("❌ Password must be at least 6 characters");
+  while (!validatePassword(password)) {
+    password = String(await ask("Password (min 8 chars, upper/lowercase and digit required): "));
+    if (!validatePassword(password)) {
+      console.log("Password is too weak.");
     }
   }
-
   rl.close();
 
-  // Check if user with this email already exists
-  const [existing] = await connection.execute(
-    "SELECT id FROM users WHERE email = ?",
-    [email],
-  );
-
-  if (existing.length > 0) {
-    // Upgrade to admin
-    const hashedPassword = await bcrypt.hash(password, 10);
-    await connection.execute(
-      "UPDATE users SET password = ?, role = 'admin', name = ? WHERE email = ?",
-      [hashedPassword, name, email],
-    );
-    console.log(`✅ Upgraded existing user "${email}" to admin`);
-  } else {
-    // Create new admin user
-    const hashedPassword = await bcrypt.hash(password, 10);
-    await connection.execute(
-      `INSERT INTO users (name, email, password, role, emailVerified, createdAt, updatedAt, lastSignInAt)
-       VALUES (?, ?, ?, 'admin', TRUE, NOW(), NOW(), NOW())`,
-      [name, email, hashedPassword],
-    );
-    console.log(`✅ Admin account created: ${email}`);
+  const [publicIdRows] = await connection.execute("SELECT id, email FROM users WHERE publicId = ?", [SUPER_ADMIN_PUBLIC_ID]);
+  if (publicIdRows.length > 0 && publicIdRows[0].email !== email) {
+    console.error(`publicId ${SUPER_ADMIN_PUBLIC_ID} is already used by another account.`);
+    await connection.end();
+    process.exit(1);
   }
 
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const [existing] = await connection.execute("SELECT id FROM users WHERE email = ?", [email]);
+
+  if (existing.length > 0) {
+    await connection.execute(
+      `UPDATE users
+       SET publicId = ?, password = ?, role = 'super_admin', level = 99, name = ?, emailVerified = TRUE,
+           sessionVersion = sessionVersion + 1, lockedUntil = NULL, updatedAt = NOW()
+       WHERE email = ?`,
+      [SUPER_ADMIN_PUBLIC_ID, hashedPassword, name, email],
+    );
+    console.log(`Upgraded existing user "${email}" to super administrator.`);
+  } else {
+    await connection.execute(
+      `INSERT INTO users (publicId, name, email, password, role, level, emailVerified, sessionVersion, createdAt, updatedAt, lastSignInAt)
+       VALUES (?, ?, ?, ?, 'super_admin', 99, TRUE, 1, NOW(), NOW(), NOW())`,
+      [SUPER_ADMIN_PUBLIC_ID, name, email, hashedPassword],
+    );
+    console.log(`Super administrator account created: ${email}`);
+  }
+
+  await connection.execute(
+    "UPDATE account_id_sequences SET nextValue = GREATEST(nextValue, ?), updatedAt = NOW() WHERE name = 'admin_public_id'",
+    [FIRST_ADMIN_PUBLIC_ID],
+  );
+
   await connection.end();
-  console.log("\n🎉 You can now log in with this account and manage other admins via /admin/users");
+  console.log("\nYou can now log in and add administrator emails via /admin/users.");
 }
 
 main().catch((err) => {
-  console.error("❌ Error:", err.message);
+  console.error("Error:", err.message);
   process.exit(1);
 });

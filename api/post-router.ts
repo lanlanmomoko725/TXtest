@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware";
+import { createRouter, publicQuery, l99Query, adminQuery } from "./middleware";
 import {
   findPosts,
   findPostById,
@@ -76,7 +76,7 @@ export const postRouter = createRouter({
       return searchPosts(input);
     }),
 
-  create: authedQuery
+  create: l99Query
     .input(
       z.object({
         title: z.string().max(255),
@@ -91,7 +91,7 @@ export const postRouter = createRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const skyGalleryCategory =
-        ctx.user.role === "admin" && input.skyGalleryCategory
+        (ctx.user.role === "admin" || ctx.user.role === "super_admin") && input.skyGalleryCategory
           ? CATEGORY_LABEL_MAP[input.category]
           : undefined;
       return createPost({
@@ -101,7 +101,7 @@ export const postRouter = createRouter({
       });
     }),
 
-  update: authedQuery
+  update: l99Query
     .input(
       z.object({
         id: z.number(),
@@ -116,19 +116,19 @@ export const postRouter = createRouter({
     .mutation(async ({ ctx, input }) => {
       const post = await findPostById(input.id);
       if (!post) throw new Error("Post not found");
-      if (post.authorId !== ctx.user.id && ctx.user.role !== "admin") {
+      if (post.authorId !== ctx.user.id && ctx.user.role !== "admin" && ctx.user.role !== "super_admin") {
         throw new Error("Not authorized");
       }
       const { id, ...data } = input;
       return updatePost(id, data);
     }),
 
-  delete: authedQuery
+  delete: l99Query
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const post = await findPostById(input.id);
       if (!post) throw new Error("Post not found");
-      if (post.authorId !== ctx.user.id && ctx.user.role !== "admin") {
+      if (post.authorId !== ctx.user.id && ctx.user.role !== "admin" && ctx.user.role !== "super_admin") {
         throw new Error("Not authorized");
       }
       await deletePost(input.id);

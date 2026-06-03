@@ -9,7 +9,7 @@ import { sanitizeHtml } from "@contracts/html-sanitizer";
 
 export default function AboutUs() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = !!user && user.level >= 99;
 
   const { data: about, isLoading } = trpc.about.get.useQuery();
   const utils = trpc.useUtils();

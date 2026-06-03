@@ -48,6 +48,9 @@ export const authRouter = createRouter({
       if (input.name && !validateNameLength(input.name)) {
         throw new Error("昵称过长：最多10个汉字或20个英文字母");
       }
+      if (input.avatar && user.level < 99) {
+        throw new Error("普通用户暂不支持上传头像。");
+      }
       const updated = await updateUser(user.id, {
         name: input.name,
         avatar: input.avatar,

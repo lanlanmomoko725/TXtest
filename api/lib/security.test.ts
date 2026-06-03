@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { User } from "@db/schema";
+import type { Comment, User } from "@db/schema";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { parseVideoUrl } from "@contracts/video-embed";
 import { detectImageFormat, extensionForFormat } from "./upload-validation";
 import { toAdminUser, toCurrentUser, toPublicUser } from "./user-dto";
+import { validatePasswordPolicy } from "./password-policy";
+import { isCommentBlocked } from "./comment-filter";
+import { buildCommentThreads } from "../queries/comments";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -12,12 +15,16 @@ afterEach(() => {
 
 const user = {
   id: 1,
+  publicId: 100001,
   name: "Ada",
   email: "ada@example.com",
   password: "hashed-password",
   avatar: "/uploads/avatar.jpg",
   role: "admin",
+  level: 99,
   emailVerified: true,
+  sessionVersion: 1,
+  lockedUntil: null,
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-02T00:00:00Z"),
   lastSignInAt: new Date("2026-01-03T00:00:00Z"),
@@ -33,6 +40,99 @@ describe("user DTOs", () => {
   it("omits email from public author shapes", () => {
     expect(toPublicUser(user)).not.toHaveProperty("email");
     expect(toCurrentUser(user)).toHaveProperty("email", "ada@example.com");
+  });
+
+  it("includes public account metadata without exposing secrets", () => {
+    expect(toPublicUser(user)).toMatchObject({ publicId: 100001, level: 99, role: "admin" });
+    expect(toAdminUser(user)).toMatchObject({ publicId: 100001, level: 99, email: "ada@example.com" });
+  });
+});
+
+describe("password policy", () => {
+  it("requires at least 8 characters with number and upper/lowercase letters", () => {
+    expect(validatePasswordPolicy("short1A")).toBeTruthy();
+    expect(validatePasswordPolicy("lowercase1")).toBeTruthy();
+    expect(validatePasswordPolicy("UPPERCASE1")).toBeTruthy();
+    expect(validatePasswordPolicy("NoNumberHere")).toBeTruthy();
+    expect(validatePasswordPolicy("Strong123")).toBeNull();
+  });
+});
+
+describe("comment filtering", () => {
+  it("blocks comments by keyword without exposing the matched word", () => {
+    expect(isCommentBlocked("This contains blockedword.", { blocklist: "blockedword" })).toBe(true);
+    expect(isCommentBlocked("This contains b l o c k e d w o r d.", { blocklist: "blockedword" })).toBe(true);
+    expect(isCommentBlocked("This is fine.", { blocklist: "blockedword" })).toBe(false);
+  });
+
+  it("supports optional regex patterns and ignores invalid custom patterns", () => {
+    expect(isCommentBlocked("ticket-1234", { patterns: "ticket-\\d{4}" })).toBe(true);
+    expect(isCommentBlocked("ticket-abcd", { patterns: "ticket-\\d{4}" })).toBe(false);
+    expect(isCommentBlocked("still allowed", { patterns: "[" })).toBe(false);
+  });
+});
+
+describe("comment threads", () => {
+  it("keeps only two levels and preserves @ target metadata for replies to replies", () => {
+    const anotherUser = {
+      ...user,
+      id: 2,
+      publicId: 100101,
+      name: "Grace",
+      email: "grace@example.com",
+      role: "user" as const,
+      level: 0,
+    } satisfies User;
+    const thirdUser = {
+      ...user,
+      id: 3,
+      publicId: 100102,
+      name: "Lin",
+      email: "lin@example.com",
+      role: "user" as const,
+      level: 0,
+    } satisfies User;
+    const comments = [
+      {
+        id: 1,
+        postId: 10,
+        authorId: 1,
+        parentId: null,
+        replyToUserId: null,
+        content: "root",
+        createdAt: new Date("2026-01-01T10:00:00Z"),
+      },
+      {
+        id: 2,
+        postId: 10,
+        authorId: 2,
+        parentId: 1,
+        replyToUserId: null,
+        content: "reply to root",
+        createdAt: new Date("2026-01-01T10:01:00Z"),
+      },
+      {
+        id: 3,
+        postId: 10,
+        authorId: 3,
+        parentId: 1,
+        replyToUserId: 2,
+        content: "reply to reply",
+        createdAt: new Date("2026-01-01T10:02:00Z"),
+      },
+    ] satisfies Comment[];
+    const authorMap = new Map([
+      [1, toPublicUser(user)],
+      [2, toPublicUser(anotherUser)],
+      [3, toPublicUser(thirdUser)],
+    ]);
+
+    const threads = buildCommentThreads(comments, authorMap);
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].replies).toHaveLength(2);
+    expect(threads[0].replies[0].replyToUser).toBeNull();
+    expect(threads[0].replies[1].replyToUser?.name).toBe("Grace");
   });
 });
 
@@ -233,6 +333,11 @@ describe("environment config", () => {
     vi.stubEnv("SMTP_HOST", "");
     vi.stubEnv("SMTP_USER", "");
     vi.stubEnv("SMTP_PASS", "");
+    vi.stubEnv("ALIYUN_CAPTCHA_SCENE_ID", "scene-test");
+    vi.stubEnv("ALIYUN_CAPTCHA_PREFIX", "prefix-test");
+    vi.stubEnv("ALIYUN_CAPTCHA_REGION", "cn");
+    vi.stubEnv("ALIBABA_CLOUD_ACCESS_KEY_ID", "ak-test");
+    vi.stubEnv("ALIBABA_CLOUD_ACCESS_KEY_SECRET", "sk-test");
 
     const { env } = await import("./env");
 

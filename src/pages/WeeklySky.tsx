@@ -10,7 +10,7 @@ import { uploadImage } from "@/lib/upload";
 
 export default function WeeklySky() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = !!user && user.level >= 99;
 
   const { data: weeklySky, isLoading } = trpc.weeklySky.get.useQuery();
   const utils = trpc.useUtils();

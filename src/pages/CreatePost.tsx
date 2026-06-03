@@ -60,7 +60,8 @@ export default function CreatePost() {
   const [region, setRegion] = useState("");
   const [isArticle, setIsArticle] = useState(false);
   const [includeSkyGallery, setIncludeSkyGallery] = useState(false);
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const canPublish = !!user && user.level >= 99;
 
   const [imageUrls, setImageUrls] = useState<string[]>(() => {
     try {
@@ -111,6 +112,17 @@ export default function CreatePost() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!canPublish) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="max-w-sm text-center">
+          <h1 className="text-xl font-bold text-foreground mb-2">暂无发布权限</h1>
+          <p className="text-sm text-muted-foreground">普通用户当前仅开放评论权限。如需发布内容，请联系管理员。</p>
+        </div>
       </div>
     );
   }

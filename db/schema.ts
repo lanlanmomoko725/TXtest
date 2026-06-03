@@ -13,12 +13,16 @@ import {
 
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
+  publicId: int("publicId").unique(),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 320 }).unique(),
   password: varchar("password", { length: 255 }),
   avatar: text("avatar"),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "super_admin"]).default("user").notNull(),
+  level: int("level").default(0).notNull(),
   emailVerified: boolean("emailVerified").default(false).notNull(),
+  sessionVersion: int("sessionVersion").default(1).notNull(),
+  lockedUntil: timestamp("lockedUntil"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt")
     .defaultNow()
@@ -33,12 +37,39 @@ export type InsertUser = typeof users.$inferInsert;
 export const verificationCodes = mysqlTable("verificationCodes", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 320 }).notNull(),
-  code: varchar("code", { length: 10 }).notNull(),
+  purpose: mysqlEnum("purpose", ["register", "reset_password"]).notNull(),
+  codeHash: varchar("codeHash", { length: 255 }).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
+  attempts: int("attempts").default(0).notNull(),
+  consumedAt: timestamp("consumedAt"),
+  ip: varchar("ip", { length: 45 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type VerificationCode = typeof verificationCodes.$inferSelect;
+
+export const accountIdSequences = mysqlTable("account_id_sequences", {
+  name: varchar("name", { length: 50 }).primaryKey(),
+  nextValue: int("nextValue").notNull(),
+  maxValue: int("maxValue").notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export type AccountIdSequence = typeof accountIdSequences.$inferSelect;
+
+export const adminEmailAllowlist = mysqlTable("admin_email_allowlist", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 320 }).unique().notNull(),
+  createdBy: bigint("createdBy", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  usedBy: bigint("usedBy", { mode: "number", unsigned: true }),
+  usedAt: timestamp("usedAt"),
+});
+
+export type AdminEmailAllowlist = typeof adminEmailAllowlist.$inferSelect;
 
 export const loginAttempts = mysqlTable("login_attempts", {
   id: serial("id").primaryKey(),
@@ -91,6 +122,8 @@ export const comments = mysqlTable("comments", {
   id: serial("id").primaryKey(),
   postId: bigint("postId", { mode: "number", unsigned: true }).notNull(),
   authorId: bigint("authorId", { mode: "number", unsigned: true }).notNull(),
+  parentId: bigint("parentId", { mode: "number", unsigned: true }),
+  replyToUserId: bigint("replyToUserId", { mode: "number", unsigned: true }),
   content: text("content").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

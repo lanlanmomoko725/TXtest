@@ -23,11 +23,11 @@ const requireAuth = t.middleware(async (opts) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
-function requireRole(role: string) {
+function requireRole(roles: string[]) {
   return t.middleware(async (opts) => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== role) {
+    if (!ctx.user || !roles.includes(ctx.user.role)) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: ErrorMessages.insufficientRole,
@@ -38,5 +38,21 @@ function requireRole(role: string) {
   });
 }
 
+const requireLevel = (minLevel: number) =>
+  t.middleware(async (opts) => {
+    const { ctx, next } = opts;
+
+    if (!ctx.user || ctx.user.level < minLevel) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: ErrorMessages.insufficientRole,
+      });
+    }
+
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  });
+
 export const authedQuery = t.procedure.use(requireAuth);
-export const adminQuery = authedQuery.use(requireRole("admin"));
+export const l99Query = authedQuery.use(requireLevel(99));
+export const adminQuery = l99Query.use(requireRole(["admin", "super_admin"]));
+export const superAdminQuery = l99Query.use(requireRole(["super_admin"]));

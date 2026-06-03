@@ -87,6 +87,9 @@ app.post("/api/upload", async (c) => {
     if (!user) {
       return attachHeaders(c.json({ error: "Authentication required" }, 401), authHeaders);
     }
+    if (user.level < 99) {
+      return attachHeaders(c.json({ error: "Administrator permission required" }, 403), authHeaders);
+    }
 
     const body = await c.req.parseBody({ all: false });
     const file = body.file as File | undefined;

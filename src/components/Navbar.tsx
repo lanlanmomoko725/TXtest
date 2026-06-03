@@ -114,6 +114,7 @@ export default function Navbar() {
   const navRef = useRef<HTMLElement>(null);
   const desktopInputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
+  const canPublish = !!user && user.level >= 99;
 
   const closeMenu = useCallback(() => {
     setMobileMenuOpen(false);
@@ -227,13 +228,15 @@ export default function Navbar() {
             <User className="h-4 w-4 mr-2" />
             个人主页
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => navigate("/create")}
-            className="cursor-pointer md:hidden focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <PenLine className="h-4 w-4 mr-2" />
-            发布
-          </DropdownMenuItem>
+          {canPublish && (
+            <DropdownMenuItem
+              onClick={() => navigate("/create")}
+              className="cursor-pointer md:hidden focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <PenLine className="h-4 w-4 mr-2" />
+              发布
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={logout}
@@ -411,7 +414,7 @@ export default function Navbar() {
               <Search className="h-4 w-4" />
             </Button>
 
-            {isAuthenticated && (
+            {canPublish && (
               <Button
                 size="sm"
                 onClick={() => navigate("/create")}

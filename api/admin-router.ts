@@ -1,19 +1,20 @@
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { createRouter, adminQuery } from "./middleware";
-import { listUsers, countUsers, updateUser, findUserById, findUserByEmail, createEmailUser, deleteUser } from "./queries/users";
+import { desc, eq } from "drizzle-orm";
+import { createRouter, adminQuery, superAdminQuery } from "./middleware";
+import { countUsers, deleteUser, findUserByEmail, findUserById, listUsers, updateUser } from "./queries/users";
 import { createAuditLog } from "./lib/audit";
 import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
-import { desc, eq, asc } from "drizzle-orm";
-import { toAdminUser } from "./lib/user-dto";
 
-async function getRootAdminId(): Promise<number | null> {
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+async function getSuperAdminId(): Promise<number | null> {
   const rows = await getDb()
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.role, "admin"))
-    .orderBy(asc(schema.users.id))
+    .where(eq(schema.users.role, "super_admin"))
     .limit(1);
   return rows[0]?.id ?? null;
 }
@@ -25,105 +26,67 @@ export const adminRouter = createRouter({
         z.object({
           offset: z.number().min(0).default(0),
           limit: z.number().min(1).max(100).default(50),
-        }).optional()
+        }).optional(),
       )
       .query(async ({ input }) => {
         const { offset = 0, limit = 50 } = input ?? {};
         const users = await listUsers({ offset, limit });
         const total = await countUsers();
-        const rootAdminId = await getRootAdminId();
-        return { users, total, rootAdminId };
+        const superAdminId = await getSuperAdminId();
+        return { users, total, superAdminId };
       }),
 
-    updateRole: adminQuery
+    updateRole: superAdminQuery
       .input(
         z.object({
           userId: z.number(),
           role: z.enum(["user", "admin"]),
-        })
+        }),
       )
       .mutation(async ({ ctx, input }) => {
         if (input.userId === ctx.user.id) {
-          throw new Error("不能修改自己的角色");
-        }
-
-        const rootAdminId = await getRootAdminId();
-        if (rootAdminId && input.userId === rootAdminId) {
-          throw new Error("不能修改初始管理员的角色");
+          throw new Error("不能修改自己的角色。");
         }
 
         const target = await findUserById(input.userId);
         if (!target) {
-          throw new Error("用户不存在");
+          throw new Error("用户不存在。");
+        }
+        if (target.role === "super_admin") {
+          throw new Error("不能修改超级管理员。");
         }
 
-        const oldRole = target.role;
-        await updateUser(input.userId, { role: input.role });
+        const nextLevel = input.role === "admin" ? 99 : 0;
+        await updateUser(input.userId, { role: input.role, level: nextLevel });
 
         await createAuditLog({
           userId: ctx.user.id,
           action: "update_user_role",
           targetType: "user",
           targetId: input.userId,
-          details: { oldRole, newRole: input.role, email: target.email },
+          details: { oldRole: target.role, newRole: input.role, email: target.email },
         });
 
         return { success: true };
       }),
 
-    create: adminQuery
-      .input(
-        z.object({
-          name: z.string().min(1).max(50),
-          email: z.string().email(),
-          password: z.string().min(6).max(100),
-          role: z.enum(["user", "admin"]).default("admin"),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const existing = await findUserByEmail(input.email);
-        if (existing) {
-          throw new Error("该邮箱已被使用");
-        }
-
-        const hashedPassword = await bcrypt.hash(input.password, 10);
-        const user = await createEmailUser({
-          name: input.name,
-          email: input.email,
-          password: hashedPassword,
-          role: input.role,
-        });
-
-        await createAuditLog({
-          userId: ctx.user.id,
-          action: "create_user",
-          targetType: "user",
-          targetId: user?.id,
-          details: { email: input.email, role: input.role, name: input.name },
-        });
-
-        return { success: true, user: toAdminUser(user) };
-      }),
-
-    delete: adminQuery
+    delete: superAdminQuery
       .input(
         z.object({
           userId: z.number(),
-        })
+        }),
       )
       .mutation(async ({ ctx, input }) => {
         if (input.userId === ctx.user.id) {
-          throw new Error("不能删除自己的账号");
-        }
-
-        const rootAdminId = await getRootAdminId();
-        if (rootAdminId && input.userId === rootAdminId) {
-          throw new Error("不能删除初始管理员");
+          throw new Error("不能删除自己的账号。");
         }
 
         const target = await findUserById(input.userId);
         if (!target) {
-          throw new Error("用户不存在");
+          throw new Error("用户不存在。");
+        }
+        if (target.role === "super_admin") {
+          throw new Error("不能删除超级管理员。");
         }
 
         await deleteUser(input.userId);
@@ -138,6 +101,79 @@ export const adminRouter = createRouter({
 
         return { success: true };
       }),
+
+    listAdminEmails: superAdminQuery.query(async () => {
+      return getDb()
+        .select()
+        .from(schema.adminEmailAllowlist)
+        .orderBy(desc(schema.adminEmailAllowlist.createdAt));
+    }),
+
+    addAdminEmail: superAdminQuery
+      .input(
+        z.object({
+          email: z.string().email("请输入有效邮箱地址"),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const email = normalizeEmail(input.email);
+        const existingUser = await findUserByEmail(email);
+        if (existingUser) {
+          throw new Error("该邮箱已经注册，不能通过预授权方式设置为管理员。");
+        }
+
+        const [existingAllowlist] = await getDb()
+          .select()
+          .from(schema.adminEmailAllowlist)
+          .where(eq(schema.adminEmailAllowlist.email, email))
+          .limit(1);
+        if (existingAllowlist) {
+          throw new Error(existingAllowlist.usedAt ? "该管理员邮箱已经注册使用。" : "该管理员邮箱已经在预授权列表中。");
+        }
+
+        await getDb().insert(schema.adminEmailAllowlist).values({
+          email,
+          createdBy: ctx.user.id,
+          createdAt: new Date(),
+        });
+
+        await createAuditLog({
+          userId: ctx.user.id,
+          action: "add_admin_email",
+          targetType: "admin_email",
+          targetId: email,
+          details: { email },
+        });
+
+        return { success: true };
+      }),
+
+    removeAdminEmail: superAdminQuery
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const [record] = await getDb()
+          .select()
+          .from(schema.adminEmailAllowlist)
+          .where(eq(schema.adminEmailAllowlist.id, input.id))
+          .limit(1);
+        if (!record) {
+          throw new Error("预授权邮箱不存在。");
+        }
+        if (record.usedAt) {
+          throw new Error("已使用的预授权邮箱不能删除。");
+        }
+
+        await getDb().delete(schema.adminEmailAllowlist).where(eq(schema.adminEmailAllowlist.id, input.id));
+        await createAuditLog({
+          userId: ctx.user.id,
+          action: "remove_admin_email",
+          targetType: "admin_email",
+          targetId: record.email,
+          details: { email: record.email },
+        });
+
+        return { success: true };
+      }),
   }),
 
   audit: createRouter({
@@ -147,7 +183,7 @@ export const adminRouter = createRouter({
           offset: z.number().min(0).default(0),
           limit: z.number().min(1).max(100).default(50),
           action: z.string().optional(),
-        }).optional()
+        }).optional(),
       )
       .query(async ({ input }) => {
         const { offset = 0, limit = 50, action } = input ?? {};
