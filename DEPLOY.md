@@ -48,6 +48,7 @@ COOKIE_SAMESITE=Lax
 ```
 
 阿里云验证码请使用 RAM 用户 AccessKey，不要使用主账号 AccessKey；该 RAM 用户至少需要验证码服务调用权限，建议授予 `AliyunYundunAFSFullAccess`。
+如果暂时没有配置阿里云验证码，网站会正常启动，但注册和找回密码的“发送验证码”会被禁用或返回“验证码服务未配置”；可临时设置 `EMAIL_AUTH_ENABLED=false` 关闭邮箱验证码入口。
 
 `COMMENT_BLOCKLIST` 使用英文逗号分隔。可选 `COMMENT_BLOCK_PATTERNS` 支持简单正则，命中后评论会被拒发且不会保存。
 

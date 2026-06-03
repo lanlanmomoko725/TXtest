@@ -57,12 +57,21 @@ afterEach(() => {
 });
 
 describe("Aliyun CAPTCHA config", () => {
-  it("requires full captcha config in production when email auth is enabled", async () => {
+  it("does not crash production boot when captcha config is missing", async () => {
     stubRequiredEnv();
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("EMAIL_AUTH_ENABLED", "true");
 
-    await expect(import("./env")).rejects.toThrow("ALIYUN_CAPTCHA_SCENE_ID");
+    const { getCaptchaClientConfig, verifyAliyunCaptcha } = await import("./captcha");
+
+    expect(getCaptchaClientConfig()).toEqual({
+      enabled: true,
+      configured: false,
+      sceneId: undefined,
+      prefix: undefined,
+      region: "cn",
+    });
+    await expect(verifyAliyunCaptcha("captcha-param")).rejects.toThrow("尚未配置");
   });
 
   it("rejects client regions other than cn or sgp", async () => {

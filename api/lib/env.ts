@@ -20,16 +20,8 @@ function captchaRegion(): "cn" | "sgp" {
   return region;
 }
 
-const isProduction = process.env.NODE_ENV === "production";
 const emailAuthEnabled = optional("EMAIL_AUTH_ENABLED") !== "false";
-
-function requiredCaptcha(name: string): string {
-  const value = optional(name);
-  if (isProduction && emailAuthEnabled && !value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
+const isProduction = process.env.NODE_ENV === "production";
 
 export const env = {
   appId: optional("APP_ID"),
@@ -45,12 +37,12 @@ export const env = {
   cookieSameSite: optional("COOKIE_SAMESITE"),
   allowedOrigins: optional("ALLOWED_ORIGINS"),
   emailAuthEnabled,
-  aliyunCaptchaSceneId: requiredCaptcha("ALIYUN_CAPTCHA_SCENE_ID"),
-  aliyunCaptchaPrefix: requiredCaptcha("ALIYUN_CAPTCHA_PREFIX"),
+  aliyunCaptchaSceneId: optional("ALIYUN_CAPTCHA_SCENE_ID"),
+  aliyunCaptchaPrefix: optional("ALIYUN_CAPTCHA_PREFIX"),
   aliyunCaptchaRegion: captchaRegion(),
   aliyunCaptchaEndpoint: optional("ALIYUN_CAPTCHA_ENDPOINT"),
-  alibabaCloudAccessKeyId: requiredCaptcha("ALIBABA_CLOUD_ACCESS_KEY_ID"),
-  alibabaCloudAccessKeySecret: requiredCaptcha("ALIBABA_CLOUD_ACCESS_KEY_SECRET"),
+  alibabaCloudAccessKeyId: optional("ALIBABA_CLOUD_ACCESS_KEY_ID"),
+  alibabaCloudAccessKeySecret: optional("ALIBABA_CLOUD_ACCESS_KEY_SECRET"),
   databaseSsl: optional("DATABASE_SSL"),
   databaseSslCaPath: optional("DATABASE_SSL_CA_PATH"),
   commentBlocklist: optional("COMMENT_BLOCKLIST"),
