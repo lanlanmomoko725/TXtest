@@ -91,6 +91,24 @@ docker compose logs --tail=80 app
 curl -i http://127.0.0.1/
 ```
 
+## Docker build on small servers
+
+If the build appears stuck at `RUN npm run build`, build the app image with plain logs and BuildKit cache:
+
+```bash
+cd /opt/TXtest
+DOCKER_BUILDKIT=1 docker compose build --progress=plain app
+docker compose up -d --force-recreate app nginx
+```
+
+For 1-2GB RAM servers, lower or tune the Node build memory limit:
+
+```bash
+DOCKER_BUILDKIT=1 docker compose build --progress=plain --build-arg NODE_MAX_OLD_SPACE=512 app
+```
+
+The Dockerfile keeps full `node_modules` in the runtime image because `dist/boot.js` externalizes package imports to make server bundling faster and lighter.
+
 ## 常用排查
 
 ```bash
