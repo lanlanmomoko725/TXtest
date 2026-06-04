@@ -95,6 +95,37 @@ describe("Aliyun CAPTCHA config", () => {
   });
 });
 
+describe("Aliyun CAPTCHA SDK loading", () => {
+  it("resolves CommonJS double-default SDK exports", async () => {
+    class VerifyIntelligentCaptchaRequest {}
+    class CaptchaClient {
+      verifyIntelligentCaptcha = vi.fn();
+    }
+    class OpenApiConfig {}
+
+    const { resolveAliyunCaptchaSdk } = await import("./captcha");
+    const resolved = resolveAliyunCaptchaSdk(
+      {
+        default: {
+          default: CaptchaClient,
+          VerifyIntelligentCaptchaRequest,
+        },
+      },
+      {
+        default: {
+          $OpenApiUtil: {
+            Config: OpenApiConfig,
+          },
+        },
+      },
+    );
+
+    expect(new resolved.CaptchaClient({})).toBeInstanceOf(CaptchaClient);
+    expect(new resolved.VerifyIntelligentCaptchaRequest({})).toBeInstanceOf(VerifyIntelligentCaptchaRequest);
+    expect(new resolved.OpenApiConfig({})).toBeInstanceOf(OpenApiConfig);
+  });
+});
+
 describe("Aliyun CAPTCHA verification", () => {
   it("passes the original CaptchaVerifyParam and SceneId to the SDK", async () => {
     stubCaptchaEnv();
