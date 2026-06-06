@@ -1,15 +1,17 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import type { User } from "@db/schema";
-import { verifyAccessToken, verifyRefreshToken, signAccessToken } from "./lib/session";
+import { verifyAccessToken, verifyRefreshToken } from "./lib/session";
 import { findUserById } from "./queries/users";
 import * as cookie from "cookie";
 import { Session } from "@contracts/constants";
 import { getSessionCookieOptions } from "./lib/cookies";
+import { rotateRefreshSession } from "./lib/sessions";
 
 export type TrpcContext = {
   req: Request;
   resHeaders: Headers;
   user?: User;
+  refreshJti?: string;
 };
 
 export async function authenticateRequest(headers: Headers, resHeaders: Headers): Promise<User | undefined> {
@@ -32,17 +34,32 @@ export async function authenticateRequest(headers: Headers, resHeaders: Headers)
     if (claim?.userId) {
       const user = await findUserById(claim.userId);
       if (!user || user.sessionVersion !== claim.sessionVersion) return undefined;
-      // Issue new access token transparently
-      const newAccessToken = await signAccessToken(claim.userId, user.sessionVersion);
+      const tokens = await rotateRefreshSession({
+        userId: user.id,
+        sessionVersion: user.sessionVersion,
+        jti: claim.jti,
+        headers,
+      });
+      if (!tokens) return undefined;
       const opts = getSessionCookieOptions(headers);
       resHeaders.append(
         "set-cookie",
-        cookie.serialize(Session.accessCookieName, newAccessToken, {
+        cookie.serialize(Session.accessCookieName, tokens.accessToken, {
           httpOnly: opts.httpOnly,
           path: opts.path,
           sameSite: opts.sameSite?.toLowerCase() as "lax" | "none",
           secure: opts.secure,
           maxAge: Session.accessMaxAgeMs / 1000,
+        }),
+      );
+      resHeaders.append(
+        "set-cookie",
+        cookie.serialize(Session.refreshCookieName, tokens.refreshToken, {
+          httpOnly: opts.httpOnly,
+          path: opts.path,
+          sameSite: opts.sameSite?.toLowerCase() as "lax" | "none",
+          secure: opts.secure,
+          maxAge: Session.refreshMaxAgeMs / 1000,
         }),
       );
       return user;

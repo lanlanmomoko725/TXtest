@@ -14,6 +14,8 @@ import {
 } from "./queries/posts";
 import { createAuditLog } from "./lib/audit";
 import { CATEGORY_LABEL_MAP, SKY_CATEGORY_IDS } from "@contracts/constants";
+import { consumeRateLimit, isRateLimitAvailable, rateLimitKey } from "./lib/rate-limit";
+import { requestIp } from "./lib/request-info";
 
 export const postRouter = createRouter({
   list: publicQuery
@@ -54,11 +56,22 @@ export const postRouter = createRouter({
     }),
 
   byId: publicQuery
-    .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
       const post = await findPostById(input.id);
       if (post) {
-        await incrementViewCount(input.id);
+        const ip = requestIp(ctx.req.headers);
+        const shouldCountView = await isRateLimitAvailable({
+          key: rateLimitKey("view", "post", input.id, "ip", ip),
+          limit: 1,
+          windowMs: 10 * 60 * 1000,
+          event: "view_count_rate_limited",
+          subject: String(input.id),
+          ip,
+        });
+        if (shouldCountView) {
+          await incrementViewCount(input.id);
+        }
       }
       return post;
     }),
@@ -72,7 +85,16 @@ export const postRouter = createRouter({
         offset: z.number().min(0).default(0),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      const ip = requestIp(ctx.req.headers);
+      await consumeRateLimit({
+        key: rateLimitKey("search", "ip", ip),
+        limit: 60,
+        windowMs: 60 * 1000,
+        event: "search_ip_rate_limited",
+        subject: input.keyword.slice(0, 64),
+        ip,
+      });
       return searchPosts(input);
     }),
 

@@ -21,6 +21,7 @@ function captchaRegion(): "cn" | "sgp" {
 }
 
 const emailAuthEnabled = optional("EMAIL_AUTH_ENABLED") !== "false";
+const smsAuthEnabled = optional("SMS_AUTH_ENABLED") !== "false";
 const isProduction = process.env.NODE_ENV === "production";
 
 export const env = {
@@ -37,6 +38,15 @@ export const env = {
   cookieSameSite: optional("COOKIE_SAMESITE"),
   allowedOrigins: optional("ALLOWED_ORIGINS"),
   emailAuthEnabled,
+  smsAuthEnabled,
+  aliyunSmsSignName: optional("ALIYUN_SMS_SIGN_NAME"),
+  aliyunSmsTemplateCode: optional("ALIYUN_SMS_TEMPLATE_CODE"),
+  aliyunSmsTemplateParam: optional("ALIYUN_SMS_TEMPLATE_PARAM"),
+  aliyunSmsSchemeName: optional("ALIYUN_SMS_SCHEME_NAME"),
+  aliyunSmsEndpoint: optional("ALIYUN_SMS_ENDPOINT"),
+  aliyunSmsCountryCode: optional("ALIYUN_SMS_COUNTRY_CODE") || "86",
+  aliyunSmsValidTimeSeconds: Number(optional("ALIYUN_SMS_VALID_TIME_SECONDS") || 300),
+  aliyunSmsIntervalSeconds: Number(optional("ALIYUN_SMS_INTERVAL_SECONDS") || 60),
   aliyunCaptchaSceneId: optional("ALIYUN_CAPTCHA_SCENE_ID"),
   aliyunCaptchaPrefix: optional("ALIYUN_CAPTCHA_PREFIX"),
   aliyunCaptchaRegion: captchaRegion(),

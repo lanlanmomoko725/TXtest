@@ -16,11 +16,14 @@ export const users = mysqlTable("users", {
   publicId: int("publicId").unique(),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 320 }).unique(),
+  phoneHash: varchar("phoneHash", { length: 128 }).unique(),
+  phoneEncrypted: text("phoneEncrypted"),
   password: varchar("password", { length: 255 }),
   avatar: text("avatar"),
   role: mysqlEnum("role", ["user", "admin", "super_admin"]).default("user").notNull(),
   level: int("level").default(0).notNull(),
   emailVerified: boolean("emailVerified").default(false).notNull(),
+  phoneVerified: boolean("phoneVerified").default(false).notNull(),
   sessionVersion: int("sessionVersion").default(1).notNull(),
   lockedUntil: timestamp("lockedUntil"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -37,7 +40,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const verificationCodes = mysqlTable("verificationCodes", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 320 }).notNull(),
-  purpose: mysqlEnum("purpose", ["register", "reset_password"]).notNull(),
+  purpose: mysqlEnum("purpose", ["register", "reset_password", "bind_email"]).notNull(),
   codeHash: varchar("codeHash", { length: 255 }).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
   attempts: int("attempts").default(0).notNull(),
@@ -80,6 +83,32 @@ export const loginAttempts = mysqlTable("login_attempts", {
 
 export type LoginAttempt = typeof loginAttempts.$inferSelect;
 
+export const sessions = mysqlTable("sessions", {
+  id: serial("id").primaryKey(),
+  userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
+  tokenHash: varchar("tokenHash", { length: 128 }).unique().notNull(),
+  ip: varchar("ip", { length: 45 }),
+  userAgent: varchar("userAgent", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  lastUsedAt: timestamp("lastUsedAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  revokedAt: timestamp("revokedAt"),
+});
+
+export type SessionRecord = typeof sessions.$inferSelect;
+
+export const rateLimitBuckets = mysqlTable("rate_limit_buckets", {
+  key: varchar("key", { length: 255 }).primaryKey(),
+  count: int("count").default(0).notNull(),
+  resetAt: timestamp("resetAt").notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
+
 export const auditLogs = mysqlTable("audit_logs", {
   id: serial("id").primaryKey(),
   userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
@@ -91,6 +120,18 @@ export const auditLogs = mysqlTable("audit_logs", {
 });
 
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+export const securityEvents = mysqlTable("security_events", {
+  id: serial("id").primaryKey(),
+  event: varchar("event", { length: 80 }).notNull(),
+  subject: varchar("subject", { length: 255 }),
+  userId: bigint("userId", { mode: "number", unsigned: true }),
+  ip: varchar("ip", { length: 45 }),
+  details: json("details").$type<Record<string, unknown> | null>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SecurityEvent = typeof securityEvents.$inferSelect;
 
 export const posts = mysqlTable("posts", {
   id: serial("id").primaryKey(),

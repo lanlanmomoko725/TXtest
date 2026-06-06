@@ -7,6 +7,7 @@ import CategoryPage from "./pages/Category"
 import PostDetail from "./pages/PostDetail"
 import CreatePost from "./pages/CreatePost"
 import Profile from "./pages/Profile"
+import AccountInfo from "./pages/AccountInfo"
 import Featured from "./pages/Featured"
 import WeeklySky from "./pages/WeeklySky"
 import Activities from "./pages/Activities"
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/post/:id" element={<PostDetail />} />
         <Route path="/create" element={<CreatePost />} />
         <Route path="/profile/:id" element={<Profile />} />
+        <Route path="/account" element={<AccountInfo />} />
         <Route path="/featured" element={<Featured />} />
         <Route path="/weekly-sky" element={<WeeklySky />} />
         <Route path="/sky-events" element={<SkyEvents />} />

@@ -25,6 +25,7 @@ import {
   UsersRound,
   Handshake,
   Sparkles,
+  Settings,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -227,6 +228,13 @@ export default function Navbar() {
           >
             <User className="h-4 w-4 mr-2" />
             个人主页
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => navigate("/account")}
+            className="cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            个人信息
           </DropdownMenuItem>
           {canPublish && (
             <DropdownMenuItem

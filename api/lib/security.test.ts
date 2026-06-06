@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Comment, User } from "@db/schema";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { parseVideoUrl } from "@contracts/video-embed";
+import { filterSafeUploadPaths, isSafeUploadPath } from "@contracts/upload-path";
 import { detectImageFormat, extensionForFormat } from "./upload-validation";
 import { toAdminUser, toCurrentUser, toPublicUser } from "./user-dto";
 import { validatePasswordPolicy } from "./password-policy";
@@ -18,11 +19,14 @@ const user = {
   publicId: 100001,
   name: "Ada",
   email: "ada@example.com",
+  phoneHash: null,
+  phoneEncrypted: null,
   password: "hashed-password",
   avatar: "/uploads/avatar.jpg",
   role: "admin",
   level: 99,
   emailVerified: true,
+  phoneVerified: false,
   sessionVersion: 1,
   lockedUntil: null,
   createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -45,6 +49,8 @@ describe("user DTOs", () => {
   it("includes public account metadata without exposing secrets", () => {
     expect(toPublicUser(user)).toMatchObject({ publicId: 100001, level: 99, role: "admin" });
     expect(toAdminUser(user)).toMatchObject({ publicId: 100001, level: 99, email: "ada@example.com" });
+    expect(toAdminUser(user)).not.toHaveProperty("phoneEncrypted");
+    expect(toAdminUser(user)).not.toHaveProperty("phoneHash");
   });
 });
 
@@ -155,6 +161,16 @@ describe("HTML sanitizer", () => {
     expect(html).toContain("<figure");
     expect(html).toContain('src="/uploads/a.jpg"');
     expect(html).toContain("text-align: center");
+  });
+
+  it("removes external and unsafe image sources from rich text", () => {
+    const html = sanitizeHtml(
+      '<p><img src="https://example.com/a.jpg"><img src="/uploads/../bad.jpg"><img src="/uploads/safe.webp"></p>',
+    );
+
+    expect(html).not.toContain("https://example.com/a.jpg");
+    expect(html).not.toContain("../bad.jpg");
+    expect(html).toContain('src="/uploads/safe.webp"');
   });
 
   it("keeps Bilibili iframes and forces official-compatible iframe attributes", () => {
@@ -321,6 +337,34 @@ describe("upload validation", () => {
   it("normalizes HEIF output extension to jpg", () => {
     expect(extensionForFormat("heif")).toBe("jpg");
     expect(extensionForFormat("webp")).toBe("webp");
+  });
+
+  it("allows only flat uploaded image paths", () => {
+    expect(isSafeUploadPath("/uploads/avatar.jpg")).toBe(true);
+    expect(isSafeUploadPath("/uploads/550e8400-e29b-41d4-a716-446655440000.png")).toBe(true);
+    expect(isSafeUploadPath("https://example.com/avatar.jpg")).toBe(false);
+    expect(isSafeUploadPath("/uploads/../secret.jpg")).toBe(false);
+    expect(isSafeUploadPath("/uploads/file.svg")).toBe(false);
+    expect(filterSafeUploadPaths(["/uploads/a.jpg", "/uploads/a.jpg", "/bad.png"])).toEqual(["/uploads/a.jpg"]);
+  });
+});
+
+describe("session tokens", () => {
+  it("binds refresh tokens to a server-side session identifier", async () => {
+    vi.resetModules();
+    vi.stubEnv("APP_SECRET", "test-secret-with-at-least-thirty-two-chars");
+    vi.stubEnv("DATABASE_URL", "mysql://user:pass@db:3306/skyweb");
+
+    const { signRefreshToken, verifyRefreshToken } = await import("./session");
+    const token = await signRefreshToken(1, 3, "refresh-jti");
+    const claim = await verifyRefreshToken(token);
+
+    expect(claim).toMatchObject({
+      type: "refresh",
+      userId: 1,
+      sessionVersion: 3,
+      jti: "refresh-jti",
+    });
   });
 });
 

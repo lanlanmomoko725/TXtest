@@ -10,7 +10,11 @@ import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { tmpdir } from "os";
+import { randomUUID } from "crypto";
 import { detectImageFormat, extensionForFormat, MAX_UPLOAD_BYTES } from "./lib/upload-validation";
+import type { ImageFormat } from "./lib/upload-validation";
+import { consumeRateLimit, rateLimitKey } from "./lib/rate-limit";
+import { requestIp } from "./lib/request-info";
 
 const execFileAsync = promisify(execFile);
 const BODY_LIMIT_BYTES = 15 * 1024 * 1024;
@@ -62,6 +66,46 @@ function uploadDir(): string {
   return env.isProduction ? join(process.cwd(), "dist/public/uploads") : join(process.cwd(), "public/uploads");
 }
 
+async function normalizeUploadedImage(
+  buffer: Buffer<ArrayBufferLike>,
+  format: ImageFormat,
+): Promise<{ buffer: Buffer<ArrayBufferLike>; ext: string }> {
+  if (format === "heif") {
+    try {
+      const sharp = (await import("sharp")).default;
+      const converted = await sharp(buffer, { limitInputPixels: 80_000_000 })
+        .rotate()
+        .jpeg({ quality: 85, mozjpeg: true })
+        .toBuffer();
+      console.log(`[upload] HEIF converted with sharp (${buffer.length} -> ${converted.length} bytes)`);
+      return { buffer: converted, ext: "jpg" };
+    } catch (sharpErr: unknown) {
+      const message = sharpErr instanceof Error ? sharpErr.message : String(sharpErr);
+      console.error(`[upload] sharp HEIF conversion failed: ${message}`);
+      const cliBuffer = await tryHeifConvertCli(buffer);
+      if (!cliBuffer) {
+        throw new Error("HEIF conversion failed. Please upload JPG, PNG, GIF, or WebP.");
+      }
+      return { buffer: cliBuffer, ext: "jpg" };
+    }
+  }
+
+  const sharp = (await import("sharp")).default;
+  const image = sharp(buffer, { limitInputPixels: 80_000_000 }).rotate();
+  if (format === "jpg") {
+    return { buffer: await image.jpeg({ quality: 85, mozjpeg: true }).toBuffer(), ext: "jpg" };
+  }
+  if (format === "png") {
+    return { buffer: await image.png({ compressionLevel: 9 }).toBuffer(), ext: "png" };
+  }
+  if (format === "webp") {
+    return { buffer: await image.webp({ quality: 85 }).toBuffer(), ext: "webp" };
+  }
+
+  // Store GIF uploads as a static first-frame PNG to avoid animation bombs and scriptable container quirks.
+  return { buffer: await image.png({ compressionLevel: 9 }).toBuffer(), ext: "png" };
+}
+
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use("/api/*", async (c, next) => {
@@ -83,16 +127,34 @@ app.use(bodyLimit({ maxSize: BODY_LIMIT_BYTES }));
 app.post("/api/upload", async (c) => {
   const authHeaders = new Headers();
   try {
+    const ip = requestIp(c.req.raw.headers);
     const user = await authenticateRequest(c.req.raw.headers, authHeaders);
     if (!user) {
       return attachHeaders(c.json({ error: "Authentication required" }, 401), authHeaders);
     }
-    if (user.level < 99) {
-      return attachHeaders(c.json({ error: "Administrator permission required" }, 403), authHeaders);
-    }
 
     const body = await c.req.parseBody({ all: false });
     const file = body.file as File | undefined;
+    const purpose = body.purpose === "avatar" ? "avatar" : "content";
+    if (user.level < 99 && purpose !== "avatar") {
+      return attachHeaders(c.json({ error: "Administrator permission required" }, 403), authHeaders);
+    }
+    await consumeRateLimit({
+      key: rateLimitKey("upload", purpose, "user", user.id),
+      limit: purpose === "avatar" ? 10 : 30,
+      windowMs: 60 * 60 * 1000,
+      event: "upload_user_rate_limited",
+      userId: user.id,
+      ip,
+    });
+    await consumeRateLimit({
+      key: rateLimitKey("upload", purpose, "ip", ip),
+      limit: purpose === "avatar" ? 30 : 60,
+      windowMs: 60 * 60 * 1000,
+      event: "upload_ip_rate_limited",
+      userId: user.id,
+      ip,
+    });
     if (!file) {
       return attachHeaders(c.json({ error: "No file uploaded" }, 400), authHeaders);
     }
@@ -109,34 +171,21 @@ app.post("/api/upload", async (c) => {
       return attachHeaders(c.json({ error: "Only JPG, PNG, GIF, WebP, and HEIF images are supported" }, 400), authHeaders);
     }
 
-    let writeBuffer: Buffer<ArrayBufferLike> = buffer;
-    let safeExt = extensionForFormat(format);
-
-    if (format === "heif") {
-      try {
-        const sharp = (await import("sharp")).default;
-        writeBuffer = await sharp(buffer, { limitInputPixels: 80_000_000 }).jpeg({ quality: 85, mozjpeg: true }).toBuffer();
-        safeExt = "jpg";
-        console.log(`[upload] HEIF converted with sharp (${buffer.length} -> ${writeBuffer.length} bytes)`);
-      } catch (sharpErr: unknown) {
-        const message = sharpErr instanceof Error ? sharpErr.message : String(sharpErr);
-        console.error(`[upload] sharp HEIF conversion failed: ${message}`);
-        const cliBuffer = await tryHeifConvertCli(buffer);
-        if (!cliBuffer) {
-          return attachHeaders(c.json({ error: "HEIF conversion failed. Please upload JPG, PNG, GIF, or WebP." }, 400), authHeaders);
-        }
-        writeBuffer = cliBuffer;
-        safeExt = "jpg";
-      }
+    let normalized: { buffer: Buffer<ArrayBufferLike>; ext: string };
+    try {
+      normalized = await normalizeUploadedImage(buffer, format);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Image conversion failed.";
+      return attachHeaders(c.json({ error: message }, 400), authHeaders);
     }
+    const writeBuffer = normalized.buffer;
+    const safeExt = normalized.ext || extensionForFormat(format);
 
     if (writeBuffer.length > MAX_UPLOAD_BYTES) {
       return attachHeaders(c.json({ error: "Converted file exceeds the 10MB limit" }, 400), authHeaders);
     }
 
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 10);
-    const filename = `${timestamp}-${random}.${safeExt}`;
+    const filename = `${randomUUID()}.${safeExt}`;
 
     const dir = uploadDir();
     await mkdir(dir, { recursive: true });

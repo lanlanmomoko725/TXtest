@@ -3,6 +3,7 @@ import * as schema from "@db/schema";
 
 import { getDb } from "./connection";
 import { toAdminUser, toPublicUser } from "../lib/user-dto";
+import { encryptIdentity, normalizeEmail, normalizePhone, phoneHash } from "../lib/identity";
 
 export type UserRole = "user" | "admin" | "super_admin";
 
@@ -19,14 +20,51 @@ export async function findUserByEmail(email: string) {
   const rows = await getDb()
     .select()
     .from(schema.users)
-    .where(eq(schema.users.email, email))
+    .where(eq(schema.users.email, normalizeEmail(email)))
     .limit(1);
   return rows.at(0);
 }
 
+export async function findUserByPhone(phone: string) {
+  const rows = await getDb()
+    .select()
+    .from(schema.users)
+    .where(eq(schema.users.phoneHash, phoneHash(phone)))
+    .limit(1);
+  return rows.at(0);
+}
+
+export async function findUsersByName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return [];
+  return getDb().select().from(schema.users).where(eq(schema.users.name, trimmed)).limit(2);
+}
+
+export async function findUserByLoginIdentifier(identifier: string) {
+  const value = identifier.trim();
+  if (!value) return null;
+
+  if (value.includes("@")) {
+    return findUserByEmail(value);
+  }
+
+  try {
+    return await findUserByPhone(value);
+  } catch {
+    // Not a phone-like identifier, fall through to username.
+  }
+
+  const users = await findUsersByName(value);
+  if (users.length > 1) {
+    throw new Error("用户名不唯一，请改用邮箱或手机号登录。");
+  }
+  return users[0] ?? null;
+}
+
 export async function createEmailUser(data: {
   name: string;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
   password: string;
   avatar?: string;
   role?: UserRole;
@@ -37,13 +75,16 @@ export async function createEmailUser(data: {
     .insert(schema.users)
     .values({
       name: data.name,
-      email: data.email,
+      email: data.email ? normalizeEmail(data.email) : null,
+      phoneHash: data.phone ? phoneHash(data.phone) : null,
+      phoneEncrypted: data.phone ? encryptIdentity(normalizePhone(data.phone)) : null,
       password: data.password,
       avatar: data.avatar || null,
       role: data.role || "user",
       publicId: data.publicId ?? null,
       level: data.level ?? (data.role === "admin" || data.role === "super_admin" ? 99 : 0),
-      emailVerified: true,
+      emailVerified: Boolean(data.email),
+      phoneVerified: Boolean(data.phone),
       sessionVersion: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -56,12 +97,31 @@ export async function createEmailUser(data: {
 
 export async function updateUser(
   id: number,
-  data: { name?: string; avatar?: string; role?: UserRole; level?: number; sessionVersion?: number; lockedUntil?: Date | null }
+  data: {
+    name?: string;
+    email?: string | null;
+    phone?: string | null;
+    avatar?: string;
+    role?: UserRole;
+    level?: number;
+    emailVerified?: boolean;
+    phoneVerified?: boolean;
+    sessionVersion?: number;
+    lockedUntil?: Date | null;
+  }
 ) {
+  const { phone, email, ...rest } = data;
   await getDb()
     .update(schema.users)
     .set({
-      ...data,
+      ...rest,
+      ...(email !== undefined ? { email: email ? normalizeEmail(email) : null } : {}),
+      ...(phone !== undefined
+        ? {
+            phoneHash: phone ? phoneHash(phone) : null,
+            phoneEncrypted: phone ? encryptIdentity(normalizePhone(phone)) : null,
+          }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.users.id, id));

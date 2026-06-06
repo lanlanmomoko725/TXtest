@@ -16,8 +16,15 @@ function splitValues(value: string) {
 
 function normalizeForKeyword(value: string) {
   return value
+    .normalize("NFKC")
     .toLocaleLowerCase()
-    .replace(/[\s\u200b-\u200d\ufeff]+/g, "");
+    .replace(/[0０]/g, "o")
+    .replace(/[1１!！|]/g, "i")
+    .replace(/[3３]/g, "e")
+    .replace(/[4４@＠]/g, "a")
+    .replace(/[5５$＄]/g, "s")
+    .replace(/[7７]/g, "t")
+    .replace(/[\s\p{P}\p{S}\u200b-\u200d\ufeff]+/gu, "");
 }
 
 export function isCommentBlocked(content: string, options?: FilterOptions) {

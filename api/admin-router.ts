@@ -201,5 +201,29 @@ export const adminRouter = createRouter({
 
         return { logs };
       }),
+    securityEvents: adminQuery
+      .input(
+        z.object({
+          offset: z.number().min(0).default(0),
+          limit: z.number().min(1).max(100).default(50),
+          event: z.string().optional(),
+        }).optional(),
+      )
+      .query(async ({ input }) => {
+        const { offset = 0, limit = 50, event } = input ?? {};
+
+        const baseQuery = getDb()
+          .select()
+          .from(schema.securityEvents)
+          .orderBy(desc(schema.securityEvents.createdAt))
+          .limit(limit)
+          .offset(offset);
+
+        const events = event
+          ? await baseQuery.where(eq(schema.securityEvents.event, event))
+          : await baseQuery;
+
+        return { events };
+      }),
   }),
 });

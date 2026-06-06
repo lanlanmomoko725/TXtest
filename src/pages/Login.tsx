@@ -8,15 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Cloud, Loader2, ArrowLeft } from "lucide-react";
+
+function normalizePhoneInput(value: string) {
+  return value.replace(/[^\d]/g, "").slice(0, 11);
+}
 
 export default function Login() {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [smsPhone, setSmsPhone] = useState("");
+  const [smsCode, setSmsCode] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loginMessage, setLoginMessage] = useState("");
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetCode, setResetCode] = useState("");
@@ -27,13 +35,35 @@ export default function Login() {
 
   const captchaConfig = trpc.emailAuth.captchaConfig.useQuery();
 
-  const loginMutation = trpc.emailAuth.login.useMutation({
-    onSuccess: async () => {
-      await utils.invalidate();
-      navigate("/");
-    },
+  const onLoginSuccess = async () => {
+    await utils.invalidate();
+    navigate("/");
+  };
+
+  const passwordLogin = trpc.emailAuth.login.useMutation({
+    onSuccess: onLoginSuccess,
     onError: (err) => {
       setLoginError(err.message || "登录失败");
+      setLoginMessage("");
+    },
+  });
+
+  const smsLogin = trpc.emailAuth.loginWithSms.useMutation({
+    onSuccess: onLoginSuccess,
+    onError: (err) => {
+      setLoginError(err.message || "登录失败");
+      setLoginMessage("");
+    },
+  });
+
+  const sendSmsCode = trpc.emailAuth.sendSmsCode.useMutation({
+    onSuccess: (data) => {
+      setLoginMessage(data.message || "短信验证码已发送。");
+      setLoginError("");
+    },
+    onError: (err) => {
+      setLoginError(err.message);
+      setLoginMessage("");
     },
   });
 
@@ -62,11 +92,30 @@ export default function Login() {
     },
   });
 
-  const handleEmailLogin = (e: FormEvent) => {
+  const handlePasswordLogin = (e: FormEvent) => {
     e.preventDefault();
     setLoginError("");
-    if (!email.trim() || !password.trim()) return;
-    loginMutation.mutate({ email: email.trim(), password });
+    setLoginMessage("");
+    if (!identifier.trim() || !password.trim()) return;
+    passwordLogin.mutate({ identifier: identifier.trim(), password });
+  };
+
+  const handleSendSmsCode = async (captchaVerifyParam: string) => {
+    setLoginError("");
+    setLoginMessage("");
+    if (smsPhone.trim().length !== 11) {
+      setLoginError("请先输入 11 位手机号。");
+      return false;
+    }
+    await sendSmsCode.mutateAsync({ phone: smsPhone.trim(), purpose: "login", captchaVerifyParam });
+    return true;
+  };
+
+  const handleSmsLogin = (e: FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    setLoginMessage("");
+    smsLogin.mutate({ phone: smsPhone.trim(), smsCode });
   };
 
   const handleSendResetCode = async (captchaVerifyParam: string) => {
@@ -109,43 +158,96 @@ export default function Login() {
           <CardTitle className="text-lg">欢迎回来</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div>
-              <Label htmlFor="email">邮箱</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                placeholder="请输入邮箱"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1.5 bg-background"
-                spellCheck={false}
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">密码</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="请输入密码"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1.5 bg-background"
-              />
-            </div>
-            {loginError ? <p className="text-sm text-destructive animate-shake">{loginError}</p> : null}
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
-              disabled={loginMutation.isPending}
-            >
-              {loginMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              登录
-            </Button>
-          </form>
+          <Tabs defaultValue="sms" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="sms">短信登录</TabsTrigger>
+              <TabsTrigger value="password">密码登录</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="sms">
+              <form onSubmit={handleSmsLogin} className="space-y-4">
+                <div>
+                  <Label htmlFor="sms-phone">手机号</Label>
+                  <Input
+                    id="sms-phone"
+                    type="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    placeholder="请输入手机号"
+                    value={smsPhone}
+                    onChange={(e) => setSmsPhone(normalizePhoneInput(e.target.value))}
+                    className="mt-1.5 bg-background"
+                    spellCheck={false}
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div>
+                    <Label htmlFor="sms-code">短信验证码</Label>
+                    <Input
+                      id="sms-code"
+                      inputMode="numeric"
+                      maxLength={8}
+                      value={smsCode}
+                      onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                      className="mt-1.5 bg-background"
+                    />
+                  </div>
+                  <AliyunCaptchaButton
+                    config={captchaConfig.data}
+                    disabled={sendSmsCode.isPending || smsPhone.trim().length !== 11}
+                    onVerify={handleSendSmsCode}
+                  >
+                    {sendSmsCode.isPending ? "发送中..." : "发送短信码"}
+                  </AliyunCaptchaButton>
+                </div>
+                {loginMessage ? <p className="text-sm text-emerald-600">{loginMessage}</p> : null}
+                {loginError ? <p className="text-sm text-destructive animate-shake">{loginError}</p> : null}
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft" disabled={smsLogin.isPending || smsPhone.trim().length !== 11 || smsCode.length < 4}>
+                  {smsLogin.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  短信登录
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="password">
+              <form onSubmit={handlePasswordLogin} className="space-y-4">
+                <div>
+                  <Label htmlFor="identifier">邮箱或用户名</Label>
+                  <Input
+                    id="identifier"
+                    autoComplete="username"
+                    placeholder="请输入邮箱或用户名"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    className="mt-1.5 bg-background"
+                    spellCheck={false}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="password">密码</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="请输入密码"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="mt-1.5 bg-background"
+                  />
+                </div>
+                {loginError ? <p className="text-sm text-destructive animate-shake">{loginError}</p> : null}
+                <Button
+                  type="submit"
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
+                  disabled={passwordLogin.isPending}
+                >
+                  {passwordLogin.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  密码登录
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+
           <div className="mt-5 flex items-center justify-between text-sm">
             <Link to="/register" className="text-primary hover:underline">
               注册账号
@@ -164,7 +266,7 @@ export default function Login() {
           </DialogHeader>
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div>
-              <Label htmlFor="reset-email">邮箱</Label>
+              <Label htmlFor="reset-email">已绑定邮箱</Label>
               <Input id="reset-email" type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
             </div>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -184,16 +286,16 @@ export default function Login() {
                 disabled={sendResetCode.isPending || !resetEmail.trim()}
                 onVerify={handleSendResetCode}
               >
-                {sendResetCode.isPending ? "发送中..." : "发送验证码"}
+                {sendResetCode.isPending ? "发送中..." : "发送邮箱码"}
               </AliyunCaptchaButton>
             </div>
             <div>
               <Label htmlFor="reset-password">新密码</Label>
-              <Input id="reset-password" type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} required />
+              <Input id="reset-password" type="password" autoComplete="new-password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} required />
             </div>
             <div>
               <Label htmlFor="reset-password-confirm">确认新密码</Label>
-              <Input id="reset-password-confirm" type="password" value={resetPasswordConfirm} onChange={(e) => setResetPasswordConfirm(e.target.value)} required />
+              <Input id="reset-password-confirm" type="password" autoComplete="new-password" value={resetPasswordConfirm} onChange={(e) => setResetPasswordConfirm(e.target.value)} required />
             </div>
             {resetMessage ? <p className="text-sm text-emerald-600">{resetMessage}</p> : null}
             {resetError ? <p className="text-sm text-destructive">{resetError}</p> : null}

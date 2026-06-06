@@ -87,6 +87,7 @@ export default function AdminUsers() {
                 <TableHead>用户 ID</TableHead>
                 <TableHead>昵称</TableHead>
                 <TableHead>邮箱</TableHead>
+                <TableHead>手机号</TableHead>
                 <TableHead>角色</TableHead>
                 <TableHead>等级</TableHead>
                 <TableHead>状态</TableHead>
@@ -98,7 +99,8 @@ export default function AdminUsers() {
                 <TableRow key={u.id}>
                   <TableCell className="font-mono text-xs">{u.publicId ?? u.id}</TableCell>
                   <TableCell>{u.name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{u.email || "-"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{u.phoneMasked || "-"}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Badge variant={roleVariant(u.role)}>

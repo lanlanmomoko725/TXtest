@@ -1,22 +1,24 @@
 import type { User } from "@db/schema";
+import { maskEncryptedPhone } from "./identity";
 
 export type PublicUser = Pick<User, "id" | "publicId" | "name" | "avatar" | "role" | "level" | "createdAt">;
 
-export type CurrentUser = Pick<
-  User,
-  | "id"
-  | "publicId"
-  | "name"
-  | "email"
-  | "avatar"
-  | "role"
-  | "level"
-  | "emailVerified"
-  | "lockedUntil"
-  | "createdAt"
-  | "updatedAt"
-  | "lastSignInAt"
->;
+export type CurrentUser = {
+  id: number;
+  publicId: number | null;
+  name: string | null;
+  email: string | null;
+  phoneMasked: string | null;
+  avatar: string | null;
+  role: User["role"];
+  level: number;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  lockedUntil: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  lastSignInAt: Date;
+};
 
 export type AdminUser = CurrentUser;
 
@@ -26,10 +28,12 @@ type UserLike = Pick<
   | "publicId"
   | "name"
   | "email"
+  | "phoneEncrypted"
   | "avatar"
   | "role"
   | "level"
   | "emailVerified"
+  | "phoneVerified"
   | "lockedUntil"
   | "createdAt"
   | "updatedAt"
@@ -56,10 +60,12 @@ export function toCurrentUser(user: UserLike | null | undefined): CurrentUser | 
     publicId: user.publicId,
     name: user.name,
     email: user.email,
+    phoneMasked: maskEncryptedPhone(user.phoneEncrypted),
     avatar: user.avatar,
     role: user.role,
     level: user.level,
     emailVerified: user.emailVerified,
+    phoneVerified: user.phoneVerified,
     lockedUntil: user.lockedUntil,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,

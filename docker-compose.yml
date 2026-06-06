@@ -6,7 +6,7 @@ services:
     container_name: TXtest-app
 
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - NODE_ENV=production
     env_file:
@@ -26,7 +26,7 @@ services:
     env_file:
       - .env.local
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     restart: unless-stopped

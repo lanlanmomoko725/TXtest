@@ -1,4 +1,4 @@
-import { asc, desc, eq, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, or } from "drizzle-orm";
 import * as schema from "@db/schema";
 import type { Comment } from "@db/schema";
 import type { PublicUser } from "../lib/user-dto";
@@ -76,6 +76,21 @@ export async function createComment(data: {
   content: string;
   replyToCommentId?: number;
 }) {
+  const recentDuplicate = await getDb()
+    .select({ id: schema.comments.id })
+    .from(schema.comments)
+    .where(
+      and(
+        eq(schema.comments.authorId, data.authorId),
+        eq(schema.comments.content, data.content.trim()),
+        gte(schema.comments.createdAt, new Date(Date.now() - 5 * 60 * 1000)),
+      ),
+    )
+    .limit(1);
+  if (recentDuplicate.length > 0) {
+    throw new Error("请不要重复发布相同评论。");
+  }
+
   let parentId: number | null = null;
   let replyToUserId: number | null = null;
 

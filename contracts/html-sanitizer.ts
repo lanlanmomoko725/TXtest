@@ -2,6 +2,7 @@ import {
   BILIBILI_IFRAME_ATTRS,
   normalizeVideoEmbedSrc,
 } from "./video-embed";
+import { isSafeUploadPath } from "./upload-path";
 
 const ALLOWED_TAGS = new Set([
   "a",
@@ -64,7 +65,9 @@ const ALLOWED_STYLE_PROPS = new Set([
 
 function isAllowedUrl(value: string): boolean {
   const trimmed = value.trim();
-  if (trimmed.startsWith("/uploads/")) return true;
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return !/[\u0000-\u001f<>]/.test(trimmed);
+  }
   try {
     const url = new URL(trimmed);
     return url.protocol === "http:" || url.protocol === "https:";
@@ -137,7 +140,9 @@ function sanitizeAttr(tagName: string, attrName: string, attrValue: string): str
     if (name === "style") return null;
   }
 
-  if (name === "href" || name === "src") {
+  if (tagName === "img" && name === "src") {
+    if (!isSafeUploadPath(attrValue)) return null;
+  } else if (name === "href" || name === "src") {
     if (!isAllowedUrl(attrValue)) return null;
   }
 

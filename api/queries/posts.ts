@@ -4,6 +4,7 @@ import type { InsertPost } from "@db/schema";
 import { getDb } from "./connection";
 import { findPublicUsersByIds } from "./users";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
+import { filterSafeUploadPaths } from "@contracts/upload-path";
 
 // Extract image URLs from HTML content (for article mode images)
 function extractImagesFromHtml(html: string): string[] {
@@ -31,11 +32,11 @@ function extractTagsFromHtml(html: string): string[] {
 
 // Normalize images field to ensure it's always an array or null
 function normalizeImages(images: unknown): string[] | null {
-  if (Array.isArray(images)) return images.filter((i) => typeof i === "string" && i.length > 0);
+  if (Array.isArray(images)) return filterSafeUploadPaths(images);
   if (typeof images === "string") {
     try {
       const parsed = JSON.parse(images);
-      if (Array.isArray(parsed)) return parsed.filter((i: unknown) => typeof i === "string" && i.length > 0);
+      if (Array.isArray(parsed)) return filterSafeUploadPaths(parsed);
     } catch {
       return null;
     }
@@ -157,8 +158,9 @@ export async function createPost(data: {
   // For articles, images are embedded inline in content — don't duplicate in images field
   const content = sanitizeHtml(data.content);
   const contentImages = data.isArticle ? [] : extractImagesFromHtml(content);
-  const mergedImages = data.images && data.images.length > 0
-    ? [...data.images, ...contentImages.filter((url) => !data.images!.includes(url))]
+  const safeInputImages = filterSafeUploadPaths(data.images) ?? [];
+  const mergedImages = safeInputImages.length > 0
+    ? [...safeInputImages, ...contentImages.filter((url) => !safeInputImages.includes(url))]
     : contentImages.length > 0 ? contentImages : null;
 
   // Extract tags from content and auto-detect sky explanation
@@ -211,7 +213,7 @@ export async function updatePost(
     updateData.content = content;
     // For articles, images are inline — don't extract to avoid duplication
     const contentImages = data.isArticle ? [] : extractImagesFromHtml(content);
-    const existingImages = data.images || [];
+    const existingImages = filterSafeUploadPaths(data.images) ?? [];
     const mergedImages = existingImages.length > 0
       ? [...existingImages, ...contentImages.filter((url) => !existingImages.includes(url))]
       : contentImages.length > 0 ? contentImages : null;
@@ -222,7 +224,7 @@ export async function updatePost(
     updateData.tags = tags.length > 0 ? tags : null;
     updateData.isSkyExplanation = tags.includes("天象解说图");
   } else if (data.images !== undefined) {
-    updateData.images = data.images;
+    updateData.images = filterSafeUploadPaths(data.images);
   }
   if (data.category !== undefined) updateData.category = data.category as InsertPost["category"];
   if (data.region !== undefined) updateData.region = data.region;

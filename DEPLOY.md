@@ -1,58 +1,62 @@
-# 天象志部署指南
+# Skyweb2 Deployment Guide
 
-## 默认部署模式
+## Default Deployment
 
-当前默认使用 Docker Compose 内置 MySQL，`docker-compose.yml` 会启动：
+The default deployment uses Docker Compose with local MySQL:
 
-- `app`：Hono/tRPC + Vite 构建后的应用，宿主机调试端口 `3000`
-- `db`：MySQL 8.0，宿主机端口 `3306`
-- `nginx`：反向代理，宿主机端口 `80`
+- `nginx`: public reverse proxy on host port `80`.
+- `app`: Hono/tRPC + built Vite app, bound to `127.0.0.1:3000`.
+- `db`: MySQL 8.0, bound to `127.0.0.1:3306`.
 
-生产暂不使用阿里云 RDS。以后如果重新切回外部数据库，只需要把 `.env.local` 的 `DATABASE_URL` 指向外部 MySQL，并按需移除 compose 里的 `db` 服务。
+Only Nginx should be reachable from the public internet. In the cloud security group, open `80` and, after TLS is configured, `443`. Keep `3000` and `3306` closed to the public internet.
 
-## 环境变量
+## Environment
 
 ```bash
 cp .env.local.example .env.local
 nano .env.local
 ```
 
-本地 MySQL 默认示例：
+Minimum production values:
 
 ```env
-APP_SECRET=至少32位随机密钥
+APP_SECRET=replace-with-random-secret-at-least-32-chars
 
-MYSQL_ROOT_PASSWORD=强root密码
+MYSQL_ROOT_PASSWORD=replace-with-strong-root-password
 MYSQL_DATABASE=skyweb
 MYSQL_USER=skyweb
-MYSQL_PASSWORD=强应用密码
-DATABASE_URL=mysql://skyweb:强应用密码@db:3306/skyweb
+MYSQL_PASSWORD=replace-with-strong-app-password
+DATABASE_URL=mysql://skyweb:replace-with-strong-app-password@db:3306/skyweb
 
 EMAIL_AUTH_ENABLED=true
 SMTP_HOST=smtp.example.com
 SMTP_PORT=465
 SMTP_USER=no-reply@example.com
-SMTP_PASS=邮箱授权码或应用密码
-SMTP_FROM="天象志 <no-reply@example.com>"
+SMTP_PASS=replace-with-app-password
+SMTP_FROM="Skyweb <no-reply@example.com>"
 
-ALIYUN_CAPTCHA_SCENE_ID=阿里云验证码场景ID
-ALIYUN_CAPTCHA_PREFIX=阿里云验证码身份标
+ALIYUN_CAPTCHA_SCENE_ID=replace-with-scene-id
+ALIYUN_CAPTCHA_PREFIX=replace-with-prefix
 ALIYUN_CAPTCHA_REGION=cn
-# ALIYUN_CAPTCHA_REGION 只能填 cn 或 sgp；需要双栈或自定义 endpoint 时再配置下一行。
-# ALIYUN_CAPTCHA_ENDPOINT=captcha-dualstack.cn-shanghai.aliyuncs.com
-ALIBABA_CLOUD_ACCESS_KEY_ID=RAM用户AccessKeyId
-ALIBABA_CLOUD_ACCESS_KEY_SECRET=RAM用户AccessKeySecret
+ALIBABA_CLOUD_ACCESS_KEY_ID=replace-with-ram-access-key-id
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=replace-with-ram-access-key-secret
 
-COMMENT_BLOCKLIST=词1,词2
+SMS_AUTH_ENABLED=true
+ALIYUN_SMS_SIGN_NAME=replace-with-system-sign-name
+ALIYUN_SMS_TEMPLATE_CODE=100001
+ALIYUN_SMS_TEMPLATE_PARAM={"code":"##code##","min":"5"}
+ALIYUN_SMS_COUNTRY_CODE=86
+ALIYUN_SMS_VALID_TIME_SECONDS=300
+ALIYUN_SMS_INTERVAL_SECONDS=60
+
 COOKIE_SAMESITE=Lax
 ```
 
-阿里云验证码请使用 RAM 用户 AccessKey，不要使用主账号 AccessKey；该 RAM 用户至少需要验证码服务调用权限，建议授予 `AliyunYundunAFSFullAccess`。
-如果暂时没有配置阿里云验证码，网站会正常启动，但注册和找回密码的“发送验证码”会被禁用或返回“验证码服务未配置”；可临时设置 `EMAIL_AUTH_ENABLED=false` 关闭邮箱验证码入口。
+Use an Alibaba Cloud RAM user for CAPTCHA. Do not use the root account AccessKey. `ALIYUN_CAPTCHA_REGION` must be `cn` or `sgp`; use `ALIYUN_CAPTCHA_ENDPOINT` only when a custom endpoint is required.
 
-`COMMENT_BLOCKLIST` 使用英文逗号分隔。可选 `COMMENT_BLOCK_PATTERNS` 支持简单正则，命中后评论会被拒发且不会保存。
+SMS verification uses Alibaba Cloud PNVS/Dypnsapi `SendSmsVerifyCode` and `CheckSmsVerifyCode`. The RAM user must be allowed to call these two actions. Keep the AccessKey in `.env.local` only. In production, enable HTTPS before opening registration because phone numbers, email addresses, and passwords must travel over TLS; phone numbers are encrypted at rest in MySQL and only a keyed hash is stored for lookup.
 
-## 首次部署
+## First Deployment
 
 ```bash
 cd /opt/TXtest
@@ -63,23 +67,24 @@ docker compose exec app node scripts/seed-admin.js
 curl -i http://127.0.0.1/
 ```
 
-`scripts/seed-admin.js` 会创建第一个超级管理员：
+`scripts/seed-admin.js` creates the first super administrator:
 
-- 不需要邮箱验证码。
-- 邮箱会绑定到账号。
-- 外显用户 ID 固定为 `100001`。
-- 角色为 `super_admin`，等级为 `L99`。
+- No email verification is required for the first account.
+- The entered email is bound to the account.
+- No SMS verification is required for this first super administrator.
+- The public user ID is fixed as `100001`.
+- The role is `super_admin` and the level is `L99`.
 
-超级管理员登录后，在 `/admin/users` 添加管理员邮箱预授权。被添加邮箱的用户自行注册并通过邮箱验证码后，会自动成为 `admin/L99`。未匹配预授权邮箱的注册用户为 `user/L0`，普通用户只开放评论权限。
+After logging in as the super administrator, add administrator email allowlist entries at `/admin/users`. Users register with phone SMS verification. If they optionally bind and verify an allowlisted email during registration, they become `admin/L99`; other users become `user/L0`.
 
-如果是从旧库迁移，先执行 schema 同步，再执行账号回填：
+For an existing database, sync the schema and then backfill account IDs:
 
 ```bash
 docker compose exec app npx drizzle-kit push
 docker compose exec app node scripts/backfill-account-ids.js
 ```
 
-## 更新部署
+## Updating
 
 ```bash
 cd /opt/TXtest
@@ -91,9 +96,24 @@ docker compose logs --tail=80 app
 curl -i http://127.0.0.1/
 ```
 
-## Docker build on small servers
+This version adds `sessions`, `rate_limit_buckets`, `security_events`, encrypted phone fields, and the `bind_email` verification purpose. Run `drizzle-kit push` after deploying the code.
 
-If the build appears stuck at `RUN npm run build`, build the app image with plain logs and BuildKit cache:
+## HTTPS
+
+Production should use HTTPS. A common setup is to terminate TLS in Nginx or in the cloud provider load balancer, then redirect HTTP to HTTPS and enable HSTS.
+
+Recommended Nginx additions after certificates are installed:
+
+```nginx
+return 301 https://$host$request_uri;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+```
+
+When HTTPS is active, cookies are issued with `Secure` automatically because `X-Forwarded-Proto` is `https`.
+
+## Small Server Builds
+
+If the build appears stuck at `RUN npm run build`, use plain logs and BuildKit cache:
 
 ```bash
 cd /opt/TXtest
@@ -101,15 +121,28 @@ DOCKER_BUILDKIT=1 docker compose build --progress=plain app
 docker compose up -d --force-recreate app nginx
 ```
 
-For 1-2GB RAM servers, lower or tune the Node build memory limit:
+For 1-2GB RAM servers:
 
 ```bash
 DOCKER_BUILDKIT=1 docker compose build --progress=plain --build-arg NODE_MAX_OLD_SPACE=512 app
 ```
 
-The Dockerfile keeps full `node_modules` in the runtime image because `dist/boot.js` externalizes package imports to make server bundling faster and lighter.
+## Security Checklist
 
-## 常用排查
+- Public security group: allow only `80` and `443`.
+- Confirm Compose does not expose `3000` or `3306` publicly: `docker compose ps`.
+- Rotate `APP_SECRET`, SMTP password, MySQL passwords, SMS template credentials, and Aliyun RAM keys if they were ever committed or shared.
+- Keep `.env.local` out of Git and out of images.
+- Back up MySQL regularly:
+
+```bash
+docker compose exec db mysqldump -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" > skyweb-$(date +%F).sql
+```
+
+- Back up `./uploads` together with the database.
+- Review `/admin/audit` after suspicious activity; security rate-limit and filter events appear in the Security Events tab.
+
+## Troubleshooting
 
 ```bash
 docker compose ps
@@ -121,16 +154,17 @@ curl -i http://127.0.0.1:3000/
 curl -i http://127.0.0.1/
 ```
 
-如果容器无法启动，重点检查：
+Check these first when containers fail:
 
-- `APP_SECRET` 是否至少 32 位。
-- `DATABASE_URL` 是否使用 `@db:3306`，并且 `MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE` 一致。
-- 服务器 80、3000、3306 端口是否被其他服务占用。
-- SMTP 和阿里云验证码配置是否完整。
-- 如配置 `ALLOWED_ORIGINS`，必须与浏览器访问的 origin 完全一致。
+- `APP_SECRET` is at least 32 characters.
+- `DATABASE_URL` uses `@db:3306`, and MySQL user/password/database match `.env.local`.
+- Host ports `80`, `3000`, and `3306` are not occupied by another service.
+- SMTP settings are complete when email binding or password reset is enabled.
+- Aliyun CAPTCHA and SMS settings are complete when public registration or SMS login is enabled.
+- `ALLOWED_ORIGINS`, if set, exactly matches the browser origin.
 
-## 数据持久化
+## Persistence
 
-- 用户上传文件挂载在宿主机 `./uploads`。
-- MySQL 数据保存在 Docker volume `mysql-data`。
-- 容器重建不会删除上传文件或数据库数据；执行 `docker compose down -v` 才会删除 MySQL volume。
+- Uploaded files are mounted at host path `./uploads`.
+- MySQL data is stored in Docker volume `mysql-data`.
+- Recreating containers does not remove uploads or database data. `docker compose down -v` deletes the MySQL volume.

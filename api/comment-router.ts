@@ -3,10 +3,13 @@ import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware
 import { findCommentsByPost, createComment, deleteCommentThread } from "./queries/comments";
 import { assertCommentAllowed } from "./lib/comment-filter";
 import { createAuditLog } from "./lib/audit";
+import { consumeRateLimit, rateLimitKey } from "./lib/rate-limit";
+import { requestIp } from "./lib/request-info";
+import { recordSecurityEvent } from "./lib/security-events";
 
 export const commentRouter = createRouter({
   list: publicQuery
-    .input(z.object({ postId: z.number() }))
+    .input(z.object({ postId: z.number().int().positive() }))
     .query(async ({ input }) => {
       return findCommentsByPost(input.postId);
     }),
@@ -14,17 +17,48 @@ export const commentRouter = createRouter({
   create: authedQuery
     .input(
       z.object({
-        postId: z.number(),
+        postId: z.number().int().positive(),
         content: z.string().min(1).max(2000),
-        replyToCommentId: z.number().optional(),
-      })
+        replyToCommentId: z.number().int().positive().optional(),
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const content = input.content.trim();
+      const ip = requestIp(ctx.req.headers);
       if (!content) {
         throw new Error("评论不能为空。");
       }
-      assertCommentAllowed(content);
+
+      await consumeRateLimit({
+        key: rateLimitKey("comment", "user", ctx.user.id),
+        limit: 12,
+        windowMs: 60 * 1000,
+        event: "comment_user_rate_limited",
+        userId: ctx.user.id,
+        ip,
+      });
+      await consumeRateLimit({
+        key: rateLimitKey("comment", "ip", ip),
+        limit: 30,
+        windowMs: 60 * 1000,
+        event: "comment_ip_rate_limited",
+        userId: ctx.user.id,
+        ip,
+      });
+
+      try {
+        assertCommentAllowed(content);
+      } catch (err) {
+        await recordSecurityEvent({
+          event: "comment_blocked",
+          subject: `post:${input.postId}`,
+          userId: ctx.user.id,
+          ip,
+          details: { contentLength: content.length },
+        });
+        throw err;
+      }
+
       return createComment({
         postId: input.postId,
         content,
@@ -34,7 +68,7 @@ export const commentRouter = createRouter({
     }),
 
   delete: adminQuery
-    .input(z.object({ id: z.number() }))
+    .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const deleted = await deleteCommentThread(input.id);
       await createAuditLog({

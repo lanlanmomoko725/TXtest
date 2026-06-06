@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { getDb } from "./connection";
+import { isSafeUploadPath } from "@contracts/upload-path";
 
 export async function findWeeklySky() {
   const rows = await getDb()
@@ -15,12 +16,16 @@ export async function upsertWeeklySky(data: {
   title?: string;
   content?: string;
 }) {
+  const safeData = {
+    ...data,
+    image: data.image === undefined ? undefined : isSafeUploadPath(data.image) ? data.image : null,
+  };
   const existing = await findWeeklySky();
   if (existing) {
     await getDb()
       .update(schema.weeklySkies)
       .set({
-        ...data,
+        ...safeData,
         updatedAt: new Date(),
       })
       .where(eq(schema.weeklySkies.id, existing.id));
@@ -30,9 +35,9 @@ export async function upsertWeeklySky(data: {
   await getDb()
     .insert(schema.weeklySkies)
     .values({
-      image: data.image || null,
-      title: data.title || null,
-      content: data.content || null,
+      image: safeData.image || null,
+      title: safeData.title || null,
+      content: safeData.content || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

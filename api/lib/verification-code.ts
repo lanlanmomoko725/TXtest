@@ -3,15 +3,12 @@ import bcrypt from "bcryptjs";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import * as schema from "@db/schema";
 import { getDb } from "../queries/connection";
+import { normalizeEmail } from "./identity";
 
-export type VerificationPurpose = "register" | "reset_password";
+export type VerificationPurpose = "register" | "reset_password" | "bind_email";
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
 
 function makeCode() {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -68,18 +65,12 @@ export async function verifyEmailCode(email: string, purpose: VerificationPurpos
   }
 
   if (record.expiresAt.getTime() < Date.now()) {
-    await getDb()
-      .update(schema.verificationCodes)
-      .set({ consumedAt: new Date() })
-      .where(eq(schema.verificationCodes.id, record.id));
+    await consumeVerificationCode(record.id);
     throw new Error("验证码无效或已过期。");
   }
 
   if (record.attempts >= MAX_VERIFY_ATTEMPTS) {
-    await getDb()
-      .update(schema.verificationCodes)
-      .set({ consumedAt: new Date() })
-      .where(eq(schema.verificationCodes.id, record.id));
+    await consumeVerificationCode(record.id);
     throw new Error("验证码错误次数过多，请重新获取验证码。");
   }
 
@@ -105,9 +96,13 @@ export async function consumeVerificationCode(id: number) {
 }
 
 export function verificationSubject(purpose: VerificationPurpose) {
-  return purpose === "register" ? "天象志邮箱验证码" : "天象志密码重置验证码";
+  if (purpose === "reset_password") return "天象志密码重置验证码";
+  if (purpose === "bind_email") return "天象志邮箱绑定验证码";
+  return "天象志邮箱验证码";
 }
 
 export function verificationTemplateLabel(purpose: VerificationPurpose) {
-  return purpose === "register" ? "注册账号" : "重置密码";
+  if (purpose === "reset_password") return "重置密码";
+  if (purpose === "bind_email") return "绑定邮箱";
+  return "验证邮箱";
 }
