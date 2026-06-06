@@ -9,6 +9,7 @@ import {
   boolean,
   int,
   json,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -133,6 +134,24 @@ export const securityEvents = mysqlTable("security_events", {
 
 export type SecurityEvent = typeof securityEvents.$inferSelect;
 
+export const profileChangeRequests = mysqlTable("profile_change_requests", {
+  id: serial("id").primaryKey(),
+  userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
+  type: mysqlEnum("type", ["name", "avatar"]).notNull(),
+  value: text("value").notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  reviewedBy: bigint("reviewedBy", { mode: "number", unsigned: true }),
+  reviewedAt: timestamp("reviewedAt"),
+  rejectReason: varchar("rejectReason", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+});
+
+export type ProfileChangeRequest = typeof profileChangeRequests.$inferSelect;
+
 export const posts = mysqlTable("posts", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -158,6 +177,17 @@ export const posts = mysqlTable("posts", {
 
 export type Post = typeof posts.$inferSelect;
 export type InsertPost = typeof posts.$inferInsert;
+
+export const postLikes = mysqlTable("post_likes", {
+  id: serial("id").primaryKey(),
+  postId: bigint("postId", { mode: "number", unsigned: true }).notNull(),
+  userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  postUserUnique: uniqueIndex("post_likes_post_user_unique").on(table.postId, table.userId),
+}));
+
+export type PostLike = typeof postLikes.$inferSelect;
 
 export const comments = mysqlTable("comments", {
   id: serial("id").primaryKey(),

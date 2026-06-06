@@ -26,6 +26,8 @@ import {
   Handshake,
   Sparkles,
   Settings,
+  ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -237,13 +239,37 @@ export default function Navbar() {
             个人信息
           </DropdownMenuItem>
           {canPublish && (
-            <DropdownMenuItem
-              onClick={() => navigate("/create")}
-              className="cursor-pointer md:hidden focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <PenLine className="h-4 w-4 mr-2" />
-              发布
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem
+                onClick={() => navigate("/create")}
+                className="cursor-pointer md:hidden focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <PenLine className="h-4 w-4 mr-2" />
+                发布
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => navigate("/admin/users")}
+                className="cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <UsersRound className="h-4 w-4 mr-2" />
+                用户管理
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate("/admin/profile-reviews")}
+                className="cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <UserCheck className="h-4 w-4 mr-2" />
+                资料审核
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate("/admin/audit")}
+                className="cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ShieldCheck className="h-4 w-4 mr-2" />
+                审计日志
+              </DropdownMenuItem>
+            </>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem

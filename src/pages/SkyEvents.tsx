@@ -6,6 +6,7 @@ import {
   Cloud,
   MapPin,
   Clock,
+  Flame,
   Loader2,
   ChevronDown,
   ChevronUp,
@@ -28,8 +29,12 @@ export default function SkyEventsPage() {
   });
   const [categoryOpen, setCategoryOpen] = useState(true);
   const [regionOpen, setRegionOpen] = useState(false);
+  const [sort, setSort] = useState<"time" | "hot">("time");
 
   const { data: posts, isLoading } = trpc.post.list.useQuery({
+    isArticle: false,
+    isSkyExplanation: false,
+    sort,
     limit: 24,
     offset: 0,
   });
@@ -137,26 +142,50 @@ export default function SkyEventsPage() {
       <div className="flex-1 min-w-0">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
           {/* 页面标题 + 移动端侧栏切换按钮 */}
-          <div className="flex items-center gap-3 mb-8">
-            {isMobile && (
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              {isMobile && (
+                <button
+                  className="p-2 rounded-md hover:bg-muted transition-colors"
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                >
+                  {sidebarOpen ? (
+                    <PanelLeftClose className="h-5 w-5 text-slate-600" />
+                  ) : (
+                    <PanelLeft className="h-5 w-5 text-slate-600" />
+                  )}
+                </button>
+              )}
+              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                <Clock className="h-6 w-6 text-primary" />
+                实时天象
+              </h1>
+              <span className="text-sm text-muted-foreground/50">
+                {posts?.length || 0} 条记录
+              </span>
+            </div>
+            <div className="inline-flex w-fit rounded-lg border border-border bg-background p-1 shadow-sm">
               <button
-                className="p-2 rounded-md hover:bg-muted transition-colors"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
+                type="button"
+                onClick={() => setSort("time")}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
+                  sort === "time" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {sidebarOpen ? (
-                  <PanelLeftClose className="h-5 w-5 text-slate-600" />
-                ) : (
-                  <PanelLeft className="h-5 w-5 text-slate-600" />
-                )}
+                <Clock className="h-3.5 w-3.5" />
+                按时间
               </button>
-            )}
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Clock className="h-6 w-6 text-primary" />
-              实时天象
-            </h1>
-            <span className="text-sm text-muted-foreground/50">
-              {posts?.length || 0} 条记录
-            </span>
+              <button
+                type="button"
+                onClick={() => setSort("hot")}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
+                  sort === "hot" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Flame className="h-3.5 w-3.5" />
+                按热度
+              </button>
+            </div>
           </div>
 
           {/* 帖子列表 */}
@@ -167,7 +196,7 @@ export default function SkyEventsPage() {
           ) : posts && posts.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} showLikeButton />
               ))}
             </div>
           ) : (

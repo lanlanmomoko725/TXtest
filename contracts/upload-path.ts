@@ -1,4 +1,5 @@
 const UPLOAD_PATH_RE = /^\/uploads\/[A-Za-z0-9._-]+\.(?:jpg|jpeg|png|gif|webp)$/i;
+const AVATAR_UPLOAD_PATH_RE = /^\/uploads\/[A-Za-z0-9._-]+\.(?:jpg|jpeg|png)$/i;
 
 export function isSafeUploadPath(value: string | null | undefined): value is string {
   if (!value) return false;
@@ -6,6 +7,11 @@ export function isSafeUploadPath(value: string | null | undefined): value is str
   if (trimmed !== value || trimmed.includes("?") || trimmed.includes("#")) return false;
   if (trimmed.includes("%") || trimmed.includes("\\") || trimmed.includes("//")) return false;
   return UPLOAD_PATH_RE.test(trimmed);
+}
+
+export function isSafeAvatarUploadPath(value: string | null | undefined): value is string {
+  if (!isSafeUploadPath(value)) return false;
+  return AVATAR_UPLOAD_PATH_RE.test(value);
 }
 
 export function filterSafeUploadPaths(values: unknown): string[] | null {

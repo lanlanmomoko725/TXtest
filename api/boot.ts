@@ -18,6 +18,7 @@ import { requestIp } from "./lib/request-info";
 
 const execFileAsync = promisify(execFile);
 const BODY_LIMIT_BYTES = 15 * 1024 * 1024;
+const MAX_AVATAR_UPLOAD_BYTES = 1 * 1024 * 1024;
 
 async function tryHeifConvertCli(heicBuffer: Buffer<ArrayBufferLike>): Promise<Buffer<ArrayBufferLike> | null> {
   const tmpIn = join(tmpdir(), `heic-${Math.random().toString(36).slice(2)}.heic`);
@@ -159,8 +160,12 @@ app.post("/api/upload", async (c) => {
       return attachHeaders(c.json({ error: "No file uploaded" }, 400), authHeaders);
     }
 
-    if (file.size > MAX_UPLOAD_BYTES) {
-      return attachHeaders(c.json({ error: "File size exceeds the 10MB limit" }, 400), authHeaders);
+    const maxBytes = purpose === "avatar" ? MAX_AVATAR_UPLOAD_BYTES : MAX_UPLOAD_BYTES;
+    if (file.size > maxBytes) {
+      return attachHeaders(
+        c.json({ error: purpose === "avatar" ? "Avatar must be 1MB or smaller" : "File size exceeds the 10MB limit" }, 400),
+        authHeaders,
+      );
     }
 
     console.log(`[upload] user=${user.id} name=${file.name} type=${file.type} size=${file.size}`);
@@ -169,6 +174,9 @@ app.post("/api/upload", async (c) => {
     const format = detectImageFormat(buffer);
     if (!format) {
       return attachHeaders(c.json({ error: "Only JPG, PNG, GIF, WebP, and HEIF images are supported" }, 400), authHeaders);
+    }
+    if (purpose === "avatar" && format !== "jpg" && format !== "png") {
+      return attachHeaders(c.json({ error: "Avatar images must be JPG, JPEG, or PNG" }, 400), authHeaders);
     }
 
     let normalized: { buffer: Buffer<ArrayBufferLike>; ext: string };
@@ -181,8 +189,11 @@ app.post("/api/upload", async (c) => {
     const writeBuffer = normalized.buffer;
     const safeExt = normalized.ext || extensionForFormat(format);
 
-    if (writeBuffer.length > MAX_UPLOAD_BYTES) {
-      return attachHeaders(c.json({ error: "Converted file exceeds the 10MB limit" }, 400), authHeaders);
+    if (writeBuffer.length > maxBytes) {
+      return attachHeaders(
+        c.json({ error: purpose === "avatar" ? "Converted avatar exceeds the 1MB limit" : "Converted file exceeds the 10MB limit" }, 400),
+        authHeaders,
+      );
     }
 
     const filename = `${randomUUID()}.${safeExt}`;

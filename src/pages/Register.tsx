@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Cloud, Loader2, UserPlus } from "lucide-react";
+import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
 
 function passwordError(password: string) {
   const message = "密码至少 8 位，并包含数字、大写字母和小写字母。";
@@ -130,7 +130,7 @@ export default function Register() {
       </Link>
 
       <div className="flex items-center gap-2 mb-8 text-2xl font-bold text-foreground z-10">
-        <Cloud className="h-7 w-7 text-primary" />
+        <img src="/logo.png" alt="天象志" width={36} height={36} className="h-9 w-9 rounded-full object-contain" />
         <span>天象志</span>
       </div>
 

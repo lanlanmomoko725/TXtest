@@ -1,8 +1,11 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import type { MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { CATEGORY_LABEL_MAP } from "@contracts/constants";
-import { Eye, MapPin, Calendar } from "lucide-react";
+import { Eye, MapPin, Calendar, Heart, Loader2 } from "lucide-react";
 import ImageGallery from "./ImageGallery";
 import type { Post } from "@db/schema";
 import type { User } from "@db/schema";
@@ -11,18 +14,46 @@ function extractPlainText(html: string): string {
   return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 }
 
+type PostCardData = Post & {
+  author: Pick<User, "id" | "publicId" | "name" | "avatar" | "role" | "level" | "createdAt"> | null;
+  weeklyLikeCount?: number;
+  likeCount?: number;
+  likedByMe?: boolean;
+};
+
 interface PostCardProps {
-  post: Post & { author: User | null };
+  post: PostCardData;
   hideMeta?: boolean;
+  showLikeButton?: boolean;
 }
 
-export default function PostCard({ post, hideMeta }: PostCardProps) {
+export default function PostCard({ post, hideMeta, showLikeButton }: PostCardProps) {
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
+  const { isAuthenticated } = useAuth();
   const categoryLabel = CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const plainContent = extractPlainText(post.content);
   const displayTitle = post.title && post.title !== plainContent.slice(0, 30) + (plainContent.length > 30 ? "..." : "")
     ? post.title
     : plainContent;
+  const weeklyLikeCount = post.weeklyLikeCount ?? post.likeCount ?? 0;
+  const toggleLike = trpc.post.toggleLike.useMutation({
+    onSuccess: async () => {
+      await utils.post.list.invalidate();
+      await utils.post.byId.invalidate({ id: post.id });
+    },
+  });
+
+  const handleLikeClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+    toggleLike.mutate({ postId: post.id });
+  };
 
   return (
     <Link to={`/post/${post.id}`} className="group block focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
@@ -101,6 +132,27 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
                   <Eye className="h-3 w-3 flex-shrink-0" />
                   {post.viewCount}
                 </span>
+                {showLikeButton ? (
+                  <button
+                    type="button"
+                    aria-label={post.likedByMe ? "取消点赞" : "点赞"}
+                    aria-pressed={Boolean(post.likedByMe)}
+                    onClick={handleLikeClick}
+                    disabled={toggleLike.isPending}
+                    className={`inline-flex h-7 min-w-[4.75rem] items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium transition-colors ${
+                      post.likedByMe
+                        ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                        : "border-border bg-background text-muted-foreground hover:border-red-200 hover:text-red-600"
+                    }`}
+                  >
+                    {toggleLike.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Heart className={`h-3 w-3 ${post.likedByMe ? "fill-current" : ""}`} />
+                    )}
+                    {weeklyLikeCount}
+                  </button>
+                ) : null}
               </div>
             </div>
           )}

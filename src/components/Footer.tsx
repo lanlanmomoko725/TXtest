@@ -16,9 +16,9 @@ export default function Footer() {
   return (
     <footer className="w-full border-t bg-muted/30 mt-auto">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-3">
           {/* Brand */}
-          <div className="space-y-4">
+          <div className="col-span-2 space-y-4 md:col-span-1">
             <Link
               to="/"
               className="inline-flex items-center gap-2 text-lg font-bold text-foreground transition-opacity hover:opacity-80 focus-visible:rounded-lg"
@@ -38,7 +38,7 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+            <h3 className="text-sm font-semibold text-foreground uppercase">
               快速导航
             </h3>
             <ul className="space-y-2">
@@ -58,7 +58,7 @@ export default function Footer() {
 
           {/* Categories */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+            <h3 className="text-sm font-semibold text-foreground uppercase">
               天象分类
             </h3>
             <ul className="space-y-2">

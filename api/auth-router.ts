@@ -2,10 +2,10 @@ import * as cookie from "cookie";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { Session } from "@contracts/constants";
-import { isSafeUploadPath } from "@contracts/upload-path";
+import { isSafeAvatarUploadPath } from "@contracts/upload-path";
 import { getSessionCookieOptions } from "./lib/cookies";
 import { createRouter, authedQuery } from "./middleware";
-import { findUserByEmail, findUserByPhone, findUsersByName, updateUser } from "./queries/users";
+import { findUserByEmail, findUserByPhone, updateUser } from "./queries/users";
 import { toCurrentUser } from "./lib/user-dto";
 import { verifyRefreshToken } from "./lib/session";
 import { revokeRefreshSession } from "./lib/sessions";
@@ -14,10 +14,21 @@ import { consumeRateLimit, rateLimitKey } from "./lib/rate-limit";
 import { requestIp } from "./lib/request-info";
 import { verifyAliyunCaptcha } from "./lib/captcha";
 import { sendSmsCode, verifySmsCode } from "./lib/sms";
-import { createVerificationCode, verifyEmailCode, verificationSubject, verificationTemplateLabel, consumeVerificationCode } from "./lib/verification-code";
+import {
+  consumeVerificationCode,
+  createVerificationCode,
+  verificationSubject,
+  verificationTemplateLabel,
+  verifyEmailCode,
+} from "./lib/verification-code";
 import { sendVerificationEmail } from "./lib/mail";
 import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
+import {
+  createProfileChangeRequests,
+  ensureNameAvailableForUser,
+  getProfileChangeStatus,
+} from "./lib/profile-changes";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -43,13 +54,6 @@ function clearAuthCookies(resHeaders: Headers, reqHeaders: Headers) {
         maxAge: 0,
       }),
     );
-  }
-}
-
-async function ensureNameAvailable(name: string, currentUserId: number) {
-  const rows = await findUsersByName(name);
-  if (rows.some((user) => user.id !== currentUserId)) {
-    throw new Error("该用户名已被使用，请换一个。");
   }
 }
 
@@ -108,6 +112,8 @@ async function rateLimitPhoneBind(ip: string, phone: string, userId: number) {
 export const authRouter = createRouter({
   me: authedQuery.query((opts) => toCurrentUser(opts.ctx.user)),
 
+  profileChangeStatus: authedQuery.query(({ ctx }) => getProfileChangeStatus(ctx.user.id)),
+
   logout: authedQuery.mutation(async ({ ctx }) => {
     const cookies = cookie.parse(ctx.req.headers.get("cookie") || "");
     const refreshToken = cookies[Session.refreshCookieName];
@@ -125,28 +131,51 @@ export const authRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const user = ctx.user!;
+      const user = ctx.user;
       const name = input.name?.trim();
+
       if (name) {
         if (!validateNameLength(name)) {
           throw new Error("用户名过长：最多 10 个汉字或 20 个英文字符。");
         }
-        await ensureNameAvailable(name, user.id);
+        await ensureNameAvailableForUser(name, user.id);
       }
-      if (input.avatar && !isSafeUploadPath(input.avatar)) {
+      if (input.avatar && !isSafeAvatarUploadPath(input.avatar)) {
         throw new Error("头像路径无效。");
       }
+
+      if (user.level < 99) {
+        const shouldChangeName = Boolean(name && name !== user.name);
+        const shouldChangeAvatar = Boolean(input.avatar && input.avatar !== user.avatar);
+        if (!shouldChangeName && !shouldChangeAvatar) {
+          throw new Error("没有需要提交审核的资料变更。");
+        }
+        await createProfileChangeRequests(user, [
+          ...(shouldChangeName && name ? [{ type: "name" as const, value: name }] : []),
+          ...(shouldChangeAvatar && input.avatar ? [{ type: "avatar" as const, value: input.avatar }] : []),
+        ]);
+        return {
+          user: toCurrentUser(user),
+          reviewRequired: true,
+          profileChangeStatus: await getProfileChangeStatus(user.id),
+        };
+      }
+
       const updated = await updateUser(user.id, {
         name,
         avatar: input.avatar,
       });
-      return toCurrentUser(updated);
+      return {
+        user: toCurrentUser(updated),
+        reviewRequired: false,
+        profileChangeStatus: await getProfileChangeStatus(user.id),
+      };
     }),
 
   sendBindEmailCode: authedQuery
     .input(z.object({ email: z.string().email("请输入有效邮箱地址") }))
     .mutation(async ({ ctx, input }) => {
-      const user = ctx.user!;
+      const user = ctx.user;
       const email = normalizeEmail(input.email);
       const ip = requestIp(ctx.req.headers);
       await rateLimitEmailBind(ip, email, user.id);
@@ -172,7 +201,7 @@ export const authRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const user = ctx.user!;
+      const user = ctx.user;
       const email = normalizeEmail(input.email);
       const existing = await findUserByEmail(email);
       if (existing && existing.id !== user.id) {
@@ -198,7 +227,7 @@ export const authRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const user = ctx.user!;
+      const user = ctx.user;
       const phone = normalizePhone(input.phone);
       const ip = requestIp(ctx.req.headers);
       await verifyAliyunCaptcha(input.captchaVerifyParam);
@@ -221,7 +250,7 @@ export const authRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const user = ctx.user!;
+      const user = ctx.user;
       const phone = normalizePhone(input.phone);
       const existing = await findUserByPhone(phone);
       if (existing && existing.id !== user.id) {

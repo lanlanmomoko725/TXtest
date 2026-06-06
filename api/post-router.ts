@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery, l99Query, adminQuery } from "./middleware";
+import { createRouter, publicQuery, authedQuery, l99Query, adminQuery } from "./middleware";
 import {
   findPosts,
   findPostById,
@@ -11,6 +11,7 @@ import {
   setPostFeatured,
   incrementViewCount,
   reorderSkyGalleryPosts,
+  togglePostLike,
 } from "./queries/posts";
 import { createAuditLog } from "./lib/audit";
 import { CATEGORY_LABEL_MAP, SKY_CATEGORY_IDS } from "@contracts/constants";
@@ -29,12 +30,13 @@ export const postRouter = createRouter({
         isSkyExplanation: z.boolean().optional(),
         tag: z.string().optional(),
         skyGalleryCategory: z.string().optional(),
+        sort: z.enum(["time", "hot"]).default("time"),
         limit: z.number().min(1).max(50).default(20),
         offset: z.number().min(0).default(0),
       }).optional()
     )
-    .query(async ({ input }) => {
-      return findPosts(input || {});
+    .query(async ({ ctx, input }) => {
+      return findPosts({ ...(input || {}), currentUserId: ctx.user?.id });
     }),
 
   byTag: publicQuery
@@ -58,7 +60,7 @@ export const postRouter = createRouter({
   byId: publicQuery
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
-      const post = await findPostById(input.id);
+      const post = await findPostById(input.id, ctx.user?.id);
       if (post) {
         const ip = requestIp(ctx.req.headers);
         const shouldCountView = await isRateLimitAvailable({
@@ -74,6 +76,14 @@ export const postRouter = createRouter({
         }
       }
       return post;
+    }),
+
+  toggleLike: authedQuery
+    .input(z.object({ postId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await togglePostLike(input.postId, ctx.user.id);
+      const post = await findPostById(input.postId, ctx.user.id);
+      return { ...result, post };
     }),
 
   search: publicQuery

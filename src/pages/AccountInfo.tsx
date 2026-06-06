@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { uploadImage } from "@/lib/upload";
-import { ArrowLeft, Camera, Loader2, Mail, Phone, Save, ShieldCheck, User } from "lucide-react";
+import { ArrowLeft, Camera, Clock3, Loader2, Mail, Phone, Save, ShieldCheck, User } from "lucide-react";
 
 function normalizePhoneInput(value: string) {
   return value.replace(/[^\d]/g, "").slice(0, 11);
@@ -31,6 +31,10 @@ export default function AccountInfo() {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  const isDirectProfileSave = (user?.level ?? 0) >= 99;
+  const profileChangeStatus = trpc.auth.profileChangeStatus.useQuery(undefined, {
+    enabled: Boolean(user && !isDirectProfileSave),
+  });
   const captchaConfig = trpc.emailAuth.captchaConfig.useQuery();
 
   useEffect(() => {
@@ -41,10 +45,11 @@ export default function AccountInfo() {
   }, [user]);
 
   const updateProfile = trpc.auth.updateProfile.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await refresh();
+      await utils.auth.profileChangeStatus.invalidate();
       await utils.post.list.invalidate();
-      setMessage("个人资料已更新。");
+      setMessage(data.reviewRequired ? "资料变更已提交审核，通过后才会公开。" : "个人资料已更新。");
       setError("");
     },
     onError: (err) => {
@@ -105,11 +110,25 @@ export default function AccountInfo() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setError("头像文件不能超过 1MB。");
+      setMessage("");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    const isAllowedAvatar = ["image/jpeg", "image/png"].includes(file.type) || /\.(jpe?g|png)$/i.test(file.name);
+    if (!isAllowedAvatar) {
+      setError("头像仅支持 JPG 或 PNG。");
+      setMessage("");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setUploading(true);
     setError("");
     setMessage("");
     try {
       setAvatar(await uploadImage(file, "avatar"));
+      setMessage(isDirectProfileSave ? "头像已上传，保存后生效。" : "头像已上传，提交审核后才会公开。");
     } catch (err) {
       setError(err instanceof Error ? err.message : "头像上传失败。");
     } finally {
@@ -155,6 +174,31 @@ export default function AccountInfo() {
     );
   }
 
+  const status = profileChangeStatus.data;
+  const pendingName = status?.name.pending ?? null;
+  const pendingAvatar = status?.avatar.pending ?? null;
+  const nameLocked = !isDirectProfileSave && (Boolean(pendingName) || Boolean(status?.name.usedThisYear));
+  const avatarLocked = !isDirectProfileSave && (Boolean(pendingAvatar) || Boolean(status?.avatar.usedThisYear));
+  const nameQuotaText = isDirectProfileSave
+    ? "管理员资料会直接保存。"
+    : pendingName
+      ? "用户名审核中，本年次数暂未消耗。"
+      : status?.name.usedThisYear
+        ? `${status.year} 年用户名更换次数已用完。`
+        : `${status?.year ?? new Date().getFullYear()} 年用户名还可提交 1 次。`;
+  const avatarQuotaText = isDirectProfileSave
+    ? "管理员头像会直接保存。"
+    : pendingAvatar
+      ? "头像审核中，本年次数暂未消耗。"
+      : status?.avatar.usedThisYear
+        ? `${status.year} 年头像更换次数已用完。`
+        : `${status?.year ?? new Date().getFullYear()} 年头像还可提交 1 次。`;
+  const profileSubmitDisabled =
+    updateProfile.isPending ||
+    uploading ||
+    !name.trim() ||
+    (!isDirectProfileSave && nameLocked && avatarLocked);
+
   return (
     <div className="min-h-screen bg-muted/20">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -182,6 +226,11 @@ export default function AccountInfo() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveProfile} className="space-y-4">
+              {!isDirectProfileSave ? (
+                <div className="rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  L0 用户头像和用户名需提交审核，通过后才会在个人主页公开；每项每个自然年可审核通过一次。
+                </div>
+              ) : null}
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20">
                   <AvatarImage src={avatar || undefined} className="object-cover" />
@@ -190,28 +239,56 @@ export default function AccountInfo() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="space-y-2">
-                  <label className="relative inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+                  <label
+                    className={`relative inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors ${
+                      avatarLocked || uploading
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                    }`}
+                  >
                     <Camera className="h-4 w-4 mr-2" />
                     {uploading ? "上传中..." : "更换头像"}
                     <input
                       ref={fileRef}
                       type="file"
-                      accept="image/*"
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                       className="absolute inset-0 cursor-pointer opacity-0"
                       onChange={handleUpload}
-                      disabled={uploading}
+                      disabled={uploading || avatarLocked}
                     />
                   </label>
-                  <p className="text-xs text-muted-foreground">支持 JPG、PNG、WebP、GIF、HEIF，上传后会自动安全重编码。</p>
+                  <p className="text-xs text-muted-foreground">支持 JPG、PNG，文件不超过 1MB。</p>
+                  <p className="text-xs text-muted-foreground">{avatarQuotaText}</p>
+                  {pendingAvatar ? (
+                    <div className="flex items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                      <Clock3 className="h-3.5 w-3.5" />
+                      待审头像：<img src={pendingAvatar.value} alt="待审头像" className="h-6 w-6 rounded-full object-cover" />
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div>
                 <Label htmlFor="account-name">用户名</Label>
-                <Input id="account-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1.5" maxLength={20} required />
+                <Input
+                  id="account-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-1.5"
+                  maxLength={20}
+                  disabled={nameLocked}
+                  required
+                />
+                <p className="mt-1 text-xs text-muted-foreground">{nameQuotaText}</p>
+                {pendingName ? (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    待审用户名：<span className="font-medium text-foreground">{pendingName.value}</span>
+                  </p>
+                ) : null}
               </div>
-              <Button type="submit" disabled={updateProfile.isPending || uploading || !name.trim()}>
+              <Button type="submit" disabled={profileSubmitDisabled}>
                 {updateProfile.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                保存基础资料
+                {isDirectProfileSave ? "保存基础资料" : "提交审核"}
               </Button>
             </form>
           </CardContent>

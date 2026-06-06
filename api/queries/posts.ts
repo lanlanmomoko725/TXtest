@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, count } from "drizzle-orm";
+import { eq, desc, and, sql, count, gte, inArray } from "drizzle-orm";
 import * as schema from "@db/schema";
 import type { InsertPost } from "@db/schema";
 import { getDb } from "./connection";
@@ -44,6 +44,72 @@ function normalizeImages(images: unknown): string[] | null {
   return null;
 }
 
+function isRealtimeSkyPost(post: typeof schema.posts.$inferSelect) {
+  return !post.skyGalleryCategory && !post.isArticle && !post.isSkyExplanation;
+}
+
+export function shanghaiWeekStart(now = new Date()) {
+  const local = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const day = local.getUTCDay();
+  const diff = (day + 6) % 7;
+  local.setUTCDate(local.getUTCDate() - diff);
+  local.setUTCHours(0, 0, 0, 0);
+  return new Date(local.getTime() - 8 * 60 * 60 * 1000);
+}
+
+async function attachPostMeta<T extends typeof schema.posts.$inferSelect>(
+  posts: T[],
+  currentUserId?: number,
+) {
+  const authorMap = await findPublicUsersByIds(posts.map((p) => p.authorId));
+  const ids = posts.map((post) => post.id);
+  const weekStart = shanghaiWeekStart();
+  const weeklyLikeMap = new Map<number, number>();
+  const likedByMe = new Set<number>();
+
+  if (ids.length > 0) {
+    const likeRows = await getDb()
+      .select({
+        postId: schema.postLikes.postId,
+        value: count(),
+      })
+      .from(schema.postLikes)
+      .where(and(inArray(schema.postLikes.postId, ids), gte(schema.postLikes.createdAt, weekStart)))
+      .groupBy(schema.postLikes.postId);
+    for (const row of likeRows) {
+      weeklyLikeMap.set(row.postId, Number(row.value));
+    }
+
+    if (currentUserId) {
+      const myLikes = await getDb()
+        .select({ postId: schema.postLikes.postId })
+        .from(schema.postLikes)
+        .where(and(inArray(schema.postLikes.postId, ids), eq(schema.postLikes.userId, currentUserId)));
+      for (const row of myLikes) {
+        likedByMe.add(row.postId);
+      }
+    }
+  }
+
+  return posts.map((post) => {
+    const content = sanitizeHtml(post.content);
+    let images = normalizeImages(post.images);
+    if (!images || images.length === 0) {
+      images = extractImagesFromHtml(content);
+    }
+    const weeklyLikeCount = weeklyLikeMap.get(post.id) ?? 0;
+    return {
+      ...post,
+      content,
+      images: images.length > 0 ? images : null,
+      author: authorMap.get(post.authorId) || null,
+      weeklyLikeCount,
+      likeCount: weeklyLikeCount,
+      likedByMe: likedByMe.has(post.id),
+    };
+  });
+}
+
 export async function findPosts(options: {
   category?: string;
   region?: string;
@@ -53,10 +119,12 @@ export async function findPosts(options: {
   isSkyExplanation?: boolean;
   tag?: string;
   skyGalleryCategory?: string;
+  sort?: "time" | "hot";
+  currentUserId?: number;
   limit?: number;
   offset?: number;
 }) {
-  const { category, region, authorId, featured, isArticle, isSkyExplanation, tag, skyGalleryCategory, limit = 20, offset = 0 } = options;
+  const { category, region, authorId, featured, isArticle, isSkyExplanation, tag, skyGalleryCategory, sort = "time", currentUserId, limit = 20, offset = 0 } = options;
 
   const conditions = [];
   if (category) conditions.push(sql`${schema.posts.category} = ${category}`);
@@ -84,9 +152,17 @@ export async function findPosts(options: {
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   // When filtering by sky gallery, sort by sortOrder first
+  const weeklyLikeScore = sql<number>`(
+    SELECT COUNT(*)
+    FROM ${schema.postLikes}
+    WHERE ${schema.postLikes.postId} = ${schema.posts.id}
+      AND ${schema.postLikes.createdAt} >= ${shanghaiWeekStart()}
+  )`;
   const orderByClause = skyGalleryCategory !== undefined
     ? [schema.posts.sortOrder, desc(schema.posts.createdAt)]
-    : [desc(schema.posts.createdAt)];
+    : sort === "hot"
+      ? [desc(weeklyLikeScore), desc(schema.posts.createdAt)]
+      : [desc(schema.posts.createdAt)];
 
   const posts = await getDb()
     .select()
@@ -96,42 +172,16 @@ export async function findPosts(options: {
     .limit(limit)
     .offset(offset);
 
-  const authorMap = await findPublicUsersByIds(posts.map((p) => p.authorId));
-
-  return posts.map((post) => {
-    const content = sanitizeHtml(post.content);
-    // Ensure images is always a proper array; fallback to extracting from content
-    let images = normalizeImages(post.images);
-    if (!images || images.length === 0) {
-      images = extractImagesFromHtml(content);
-    }
-    return {
-      ...post,
-      content,
-      images: images.length > 0 ? images : null,
-      author: authorMap.get(post.authorId) || null,
-    };
-  });
+  return attachPostMeta(posts, currentUserId);
 }
 
-export async function findPostById(id: number) {
+export async function findPostById(id: number, currentUserId?: number) {
   const post = await getDb().query.posts.findFirst({
     where: eq(schema.posts.id, id),
   });
   if (!post) return null;
-  const content = sanitizeHtml(post.content);
-  const authorMap = await findPublicUsersByIds([post.authorId]);
-  // Ensure images is always a proper array; fallback to extracting from content
-  let images = normalizeImages(post.images);
-  if (!images || images.length === 0) {
-    images = extractImagesFromHtml(content);
-  }
-  return {
-    ...post,
-    content,
-    images: images.length > 0 ? images : null,
-    author: authorMap.get(post.authorId) || null,
-  };
+  const [withMeta] = await attachPostMeta([post], currentUserId);
+  return withMeta;
 }
 
 export async function findFeaturedPosts(limit = 6) {
@@ -253,6 +303,33 @@ export async function incrementViewCount(id: number) {
     .update(schema.posts)
     .set({ viewCount: sql`${schema.posts.viewCount} + 1` })
     .where(eq(schema.posts.id, id));
+}
+
+export async function togglePostLike(postId: number, userId: number) {
+  const post = await getDb().query.posts.findFirst({
+    where: eq(schema.posts.id, postId),
+  });
+  if (!post || !isRealtimeSkyPost(post)) {
+    throw new Error("帖子不存在或不支持点赞。");
+  }
+
+  const [existing] = await getDb()
+    .select()
+    .from(schema.postLikes)
+    .where(and(eq(schema.postLikes.postId, postId), eq(schema.postLikes.userId, userId)))
+    .limit(1);
+
+  if (existing) {
+    await getDb().delete(schema.postLikes).where(eq(schema.postLikes.id, existing.id));
+    return { liked: false };
+  }
+
+  await getDb().insert(schema.postLikes).values({
+    postId,
+    userId,
+    createdAt: new Date(),
+  });
+  return { liked: true };
 }
 
 export async function searchPosts(options: {

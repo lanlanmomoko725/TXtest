@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Comment, User } from "@db/schema";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { parseVideoUrl } from "@contracts/video-embed";
-import { filterSafeUploadPaths, isSafeUploadPath } from "@contracts/upload-path";
+import { filterSafeUploadPaths, isSafeAvatarUploadPath, isSafeUploadPath } from "@contracts/upload-path";
 import { detectImageFormat, extensionForFormat } from "./upload-validation";
 import { toAdminUser, toCurrentUser, toPublicUser } from "./user-dto";
 import { validatePasswordPolicy } from "./password-policy";
@@ -346,6 +346,14 @@ describe("upload validation", () => {
     expect(isSafeUploadPath("/uploads/../secret.jpg")).toBe(false);
     expect(isSafeUploadPath("/uploads/file.svg")).toBe(false);
     expect(filterSafeUploadPaths(["/uploads/a.jpg", "/uploads/a.jpg", "/bad.png"])).toEqual(["/uploads/a.jpg"]);
+  });
+
+  it("allows only jpg and png upload paths for avatars", () => {
+    expect(isSafeAvatarUploadPath("/uploads/avatar.jpg")).toBe(true);
+    expect(isSafeAvatarUploadPath("/uploads/avatar.jpeg")).toBe(true);
+    expect(isSafeAvatarUploadPath("/uploads/avatar.png")).toBe(true);
+    expect(isSafeAvatarUploadPath("/uploads/avatar.webp")).toBe(false);
+    expect(isSafeAvatarUploadPath("/uploads/avatar.gif")).toBe(false);
   });
 });
 

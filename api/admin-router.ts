@@ -5,6 +5,7 @@ import { countUsers, deleteUser, findUserByEmail, findUserById, listUsers, updat
 import { createAuditLog } from "./lib/audit";
 import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
+import { listPendingProfileChangeRequests, reviewProfileChangeRequest } from "./lib/profile-changes";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -170,6 +171,41 @@ export const adminRouter = createRouter({
           targetType: "admin_email",
           targetId: record.email,
           details: { email: record.email },
+        });
+
+        return { success: true };
+      }),
+  }),
+
+  profileChanges: createRouter({
+    pending: adminQuery.query(() => listPendingProfileChangeRequests()),
+    review: adminQuery
+      .input(
+        z.object({
+          requestId: z.number(),
+          approve: z.boolean(),
+          rejectReason: z.string().max(255).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const result = await reviewProfileChangeRequest({
+          requestId: input.requestId,
+          reviewerId: ctx.user.id,
+          approve: input.approve,
+          rejectReason: input.rejectReason,
+        });
+
+        await createAuditLog({
+          userId: ctx.user.id,
+          action: input.approve ? "approve_profile_change" : "reject_profile_change",
+          targetType: "profile_change",
+          targetId: input.requestId,
+          details: {
+            type: result.request.type,
+            userId: result.request.userId,
+            applied: result.applied,
+            rejectReason: input.rejectReason,
+          },
         });
 
         return { success: true };

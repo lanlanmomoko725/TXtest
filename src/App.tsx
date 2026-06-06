@@ -20,6 +20,7 @@ import TagPosts from "./pages/TagPosts"
 import SearchPage from "./pages/Search"
 import AdminUsers from "./pages/admin/Users"
 import AdminAuditLogs from "./pages/admin/AuditLogs"
+import AdminProfileReviews from "./pages/admin/ProfileReviews"
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
 import ScrollManager from "./components/ScrollManager"
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="/tag/:tag" element={<TagPosts />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/profile-reviews" element={<AdminProfileReviews />} />
         <Route path="/admin/audit" element={<AdminAuditLogs />} />
       </Route>
       <Route path="/login" element={<Login />} />

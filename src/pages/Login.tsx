@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Cloud, Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 
 function normalizePhoneInput(value: string) {
   return value.replace(/[^\d]/g, "").slice(0, 11);
@@ -149,7 +149,7 @@ export default function Login() {
       </Link>
 
       <div className="flex items-center gap-2 mb-8 text-2xl font-bold text-foreground z-10">
-        <Cloud className="h-7 w-7 text-primary" />
+        <img src="/logo.png" alt="天象志" width={36} height={36} className="h-9 w-9 rounded-full object-contain" />
         <span>天象志</span>
       </div>
 
