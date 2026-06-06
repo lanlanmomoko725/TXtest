@@ -59,12 +59,15 @@ export const commentRouter = createRouter({
         throw err;
       }
 
-      return createComment({
+      const pendingReview = ctx.user.level < 99;
+      const comment = await createComment({
         postId: input.postId,
         content,
         authorId: ctx.user.id,
         replyToCommentId: input.replyToCommentId,
+        status: pendingReview ? "pending" : "approved",
       });
+      return { comment, pendingReview };
     }),
 
   delete: adminQuery

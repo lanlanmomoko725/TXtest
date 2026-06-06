@@ -3,6 +3,7 @@ import type { Comment, User } from "@db/schema";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { parseVideoUrl } from "@contracts/video-embed";
 import { filterSafeUploadPaths, isSafeAvatarUploadPath, isSafeUploadPath } from "@contracts/upload-path";
+import { USERNAME_CHAR_ERROR, USERNAME_LENGTH_ERROR, validateUsername } from "@contracts/username";
 import { detectImageFormat, extensionForFormat } from "./upload-validation";
 import { toAdminUser, toCurrentUser, toPublicUser } from "./user-dto";
 import { validatePasswordPolicy } from "./password-policy";
@@ -64,6 +65,23 @@ describe("password policy", () => {
   });
 });
 
+describe("username policy", () => {
+  it("allows up to 12 English characters or 8 Chinese characters", () => {
+    expect(validateUsername("Sky_User-12")).toBeNull();
+    expect(validateUsername("云霞星河风雨雷电")).toBeNull();
+    expect(validateUsername("abcdefghijkl")).toBeNull();
+    expect(validateUsername("abcdefghijklm")).toBe(USERNAME_LENGTH_ERROR);
+    expect(validateUsername("云霞星河风雨雷电光")).toBe(USERNAME_LENGTH_ERROR);
+  });
+
+  it("only allows letters, numbers, Chinese characters, dot, dash, and underscore", () => {
+    expect(validateUsername("观云者_01")).toBeNull();
+    expect(validateUsername("sky.user-01")).toBeNull();
+    expect(validateUsername("sky user")).toBe(USERNAME_CHAR_ERROR);
+    expect(validateUsername("sky@user")).toBe(USERNAME_CHAR_ERROR);
+  });
+});
+
 describe("comment filtering", () => {
   it("blocks comments by keyword without exposing the matched word", () => {
     expect(isCommentBlocked("This contains blockedword.", { blocklist: "blockedword" })).toBe(true);
@@ -106,7 +124,12 @@ describe("comment threads", () => {
         parentId: null,
         replyToUserId: null,
         content: "root",
+        status: "approved",
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectReason: null,
         createdAt: new Date("2026-01-01T10:00:00Z"),
+        updatedAt: new Date("2026-01-01T10:00:00Z"),
       },
       {
         id: 2,
@@ -115,7 +138,12 @@ describe("comment threads", () => {
         parentId: 1,
         replyToUserId: null,
         content: "reply to root",
+        status: "approved",
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectReason: null,
         createdAt: new Date("2026-01-01T10:01:00Z"),
+        updatedAt: new Date("2026-01-01T10:01:00Z"),
       },
       {
         id: 3,
@@ -124,7 +152,12 @@ describe("comment threads", () => {
         parentId: 1,
         replyToUserId: 2,
         content: "reply to reply",
+        status: "approved",
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectReason: null,
         createdAt: new Date("2026-01-01T10:02:00Z"),
+        updatedAt: new Date("2026-01-01T10:02:00Z"),
       },
     ] satisfies Comment[];
     const authorMap = new Map([

@@ -47,14 +47,14 @@ export const postRouter = createRouter({
         offset: z.number().min(0).default(0),
       })
     )
-    .query(async ({ input }) => {
-      return findPosts({ tag: input.tag, limit: input.limit, offset: input.offset });
+    .query(async ({ ctx, input }) => {
+      return findPosts({ tag: input.tag, limit: input.limit, offset: input.offset, currentUserId: ctx.user?.id });
     }),
 
   featured: publicQuery
     .input(z.object({ limit: z.number().min(1).max(20).default(6) }).optional())
-    .query(async ({ input }) => {
-      return findFeaturedPosts(input?.limit || 6);
+    .query(async ({ ctx, input }) => {
+      return findFeaturedPosts(input?.limit || 6, ctx.user?.id);
     }),
 
   byId: publicQuery
@@ -105,7 +105,7 @@ export const postRouter = createRouter({
         subject: input.keyword.slice(0, 64),
         ip,
       });
-      return searchPosts(input);
+      return searchPosts({ ...input, currentUserId: ctx.user?.id });
     }),
 
   create: l99Query

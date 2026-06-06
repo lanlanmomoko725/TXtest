@@ -1,12 +1,12 @@
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import PostCard from "@/components/PostCard";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SKY_CATEGORIES, REGIONS } from "@contracts/constants";
 import {
   Cloud,
   MapPin,
   Clock,
-  Flame,
   Loader2,
   ChevronDown,
   ChevronUp,
@@ -164,28 +164,12 @@ export default function SkyEventsPage() {
                 {posts?.length || 0} 条记录
               </span>
             </div>
-            <div className="inline-flex w-fit rounded-lg border border-border bg-background p-1 shadow-sm">
-              <button
-                type="button"
-                onClick={() => setSort("time")}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
-                  sort === "time" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                按时间
-              </button>
-              <button
-                type="button"
-                onClick={() => setSort("hot")}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${
-                  sort === "hot" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Flame className="h-3.5 w-3.5" />
-                按热度
-              </button>
-            </div>
+            <Tabs value={sort} onValueChange={(value) => setSort(value as "time" | "hot")}>
+              <TabsList>
+                <TabsTrigger value="time">最新</TabsTrigger>
+                <TabsTrigger value="hot">最热</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
           {/* 帖子列表 */}
@@ -196,7 +180,7 @@ export default function SkyEventsPage() {
           ) : posts && posts.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} showLikeButton />
+                <PostCard key={post.id} post={post} />
               ))}
             </div>
           ) : (

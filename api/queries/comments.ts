@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
 import * as schema from "@db/schema";
 import type { Comment } from "@db/schema";
 import type { PublicUser } from "../lib/user-dto";
@@ -49,7 +49,7 @@ export async function findCommentsByPost(postId: number) {
   const comments = await getDb()
     .select()
     .from(schema.comments)
-    .where(eq(schema.comments.postId, postId))
+    .where(and(eq(schema.comments.postId, postId), eq(schema.comments.status, "approved")))
     .orderBy(asc(schema.comments.createdAt));
 
   const userIds = comments.flatMap((comment) => [
@@ -75,6 +75,7 @@ export async function createComment(data: {
   authorId: number;
   content: string;
   replyToCommentId?: number;
+  status?: "pending" | "approved";
 }) {
   const recentDuplicate = await getDb()
     .select({ id: schema.comments.id })
@@ -99,11 +100,17 @@ export async function createComment(data: {
     if (!target || target.postId !== data.postId) {
       throw new Error("回复的评论不存在。");
     }
+    if (target.status !== "approved") {
+      throw new Error("回复的评论暂不可见。");
+    }
 
     if (target.parentId) {
       const root = await findCommentById(target.parentId);
       if (!root || root.postId !== data.postId) {
         throw new Error("回复的评论不存在。");
+      }
+      if (root.status !== "approved") {
+        throw new Error("回复的评论暂不可见。");
       }
       parentId = root.id;
       replyToUserId = target.authorId;
@@ -121,6 +128,8 @@ export async function createComment(data: {
       parentId,
       replyToUserId,
       content: data.content.trim(),
+      status: data.status ?? "pending",
+      updatedAt: new Date(),
     })
     .$returningId();
 
@@ -133,6 +142,63 @@ export async function createComment(data: {
     author: authorMap.get(comment.authorId) || null,
     replyToUser: comment.replyToUserId ? authorMap.get(comment.replyToUserId) || null : null,
   };
+}
+
+export async function listPendingComments() {
+  const comments = await getDb()
+    .select()
+    .from(schema.comments)
+    .where(eq(schema.comments.status, "pending"))
+    .orderBy(desc(schema.comments.createdAt));
+
+  const authorMap = await findPublicUsersByIds(comments.map((comment) => comment.authorId));
+  const postIds = [...new Set(comments.map((comment) => comment.postId))];
+  const postRows = postIds.length
+    ? await getDb()
+        .select({
+          id: schema.posts.id,
+          title: schema.posts.title,
+        })
+        .from(schema.posts)
+        .where(inArray(schema.posts.id, postIds))
+    : [];
+  const postMap = new Map(postRows.map((post) => [post.id, post]));
+
+  return comments.map((comment) => ({
+    ...comment,
+    author: authorMap.get(comment.authorId) || null,
+    post: postMap.get(comment.postId) || null,
+  }));
+}
+
+export async function reviewComment(options: {
+  commentId: number;
+  reviewerId: number;
+  approve: boolean;
+  rejectReason?: string;
+}) {
+  const [comment] = await getDb()
+    .select()
+    .from(schema.comments)
+    .where(and(eq(schema.comments.id, options.commentId), eq(schema.comments.status, "pending")))
+    .limit(1);
+
+  if (!comment) {
+    throw new Error("待审核评论不存在或已处理。");
+  }
+
+  await getDb()
+    .update(schema.comments)
+    .set({
+      status: options.approve ? "approved" : "rejected",
+      reviewedBy: options.reviewerId,
+      reviewedAt: new Date(),
+      rejectReason: options.approve ? null : options.rejectReason?.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.comments.id, comment.id));
+
+  return { success: true, comment };
 }
 
 export async function deleteCommentThread(commentId: number) {

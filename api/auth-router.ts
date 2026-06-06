@@ -3,6 +3,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { Session } from "@contracts/constants";
 import { isSafeAvatarUploadPath } from "@contracts/upload-path";
+import { USERNAME_LENGTH_ERROR, USERNAME_MAX_UNITS, assertValidUsername } from "@contracts/username";
 import { getSessionCookieOptions } from "./lib/cookies";
 import { createRouter, authedQuery } from "./middleware";
 import { findUserByEmail, findUserByPhone, updateUser } from "./queries/users";
@@ -32,14 +33,7 @@ import {
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
-function validateNameLength(name: string): boolean {
-  let length = 0;
-  for (const char of name) {
-    length += char.charCodeAt(0) > 127 ? 2 : 1;
-  }
-  return length <= 20;
-}
+const TEN_MINUTES_MS = 10 * 60 * 1000;
 
 function clearAuthCookies(resHeaders: Headers, reqHeaders: Headers) {
   const opts = getSessionCookieOptions(reqHeaders);
@@ -73,6 +67,27 @@ async function rateLimitEmailBind(ip: string, email: string, userId: number) {
     windowMs: ONE_HOUR_MS,
     event: "bind_email_target_rate_limited",
     subject: email,
+    userId,
+    ip,
+  });
+}
+
+async function rateLimitCaptcha(ip: string, subject: string, purpose: string, userId: number) {
+  await consumeRateLimit({
+    key: rateLimitKey("captcha", purpose, "user", userId),
+    limit: 30,
+    windowMs: TEN_MINUTES_MS,
+    event: "captcha_rate_limited",
+    subject,
+    userId,
+    ip,
+  });
+  await consumeRateLimit({
+    key: rateLimitKey("captcha", purpose, "ip", ip),
+    limit: 60,
+    windowMs: TEN_MINUTES_MS,
+    event: "captcha_rate_limited",
+    subject,
     userId,
     ip,
   });
@@ -126,7 +141,7 @@ export const authRouter = createRouter({
   updateProfile: authedQuery
     .input(
       z.object({
-        name: z.string().min(1).max(20).optional(),
+        name: z.string().min(1).max(USERNAME_MAX_UNITS, USERNAME_LENGTH_ERROR).optional(),
         avatar: z.string().optional(),
       }),
     )
@@ -134,10 +149,9 @@ export const authRouter = createRouter({
       const user = ctx.user;
       const name = input.name?.trim();
 
-      if (name) {
-        if (!validateNameLength(name)) {
-          throw new Error("用户名过长：最多 10 个汉字或 20 个英文字符。");
-        }
+      const shouldChangeName = Boolean(name && name !== user.name);
+      if (shouldChangeName && name) {
+        assertValidUsername(name);
         await ensureNameAvailableForUser(name, user.id);
       }
       if (input.avatar && !isSafeAvatarUploadPath(input.avatar)) {
@@ -145,7 +159,6 @@ export const authRouter = createRouter({
       }
 
       if (user.level < 99) {
-        const shouldChangeName = Boolean(name && name !== user.name);
         const shouldChangeAvatar = Boolean(input.avatar && input.avatar !== user.avatar);
         if (!shouldChangeName && !shouldChangeAvatar) {
           throw new Error("没有需要提交审核的资料变更。");
@@ -173,11 +186,18 @@ export const authRouter = createRouter({
     }),
 
   sendBindEmailCode: authedQuery
-    .input(z.object({ email: z.string().email("请输入有效邮箱地址") }))
+    .input(
+      z.object({
+        email: z.string().email("请输入有效邮箱地址"),
+        captchaVerifyParam: z.string().min(1, "请先完成人机验证"),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const user = ctx.user;
       const email = normalizeEmail(input.email);
       const ip = requestIp(ctx.req.headers);
+      await rateLimitCaptcha(ip, email, "bind-email", user.id);
+      await verifyAliyunCaptcha(input.captchaVerifyParam);
       await rateLimitEmailBind(ip, email, user.id);
 
       const existing = await findUserByEmail(email);
@@ -230,6 +250,7 @@ export const authRouter = createRouter({
       const user = ctx.user;
       const phone = normalizePhone(input.phone);
       const ip = requestIp(ctx.req.headers);
+      await rateLimitCaptcha(ip, `phone:${phoneHash(phone)}`, "bind-phone", user.id);
       await verifyAliyunCaptcha(input.captchaVerifyParam);
       await rateLimitPhoneBind(ip, phone, user.id);
 

@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { AliyunCaptchaButton } from "@/components/AliyunCaptchaButton";
+import { USERNAME_HINT, USERNAME_MAX_UNITS } from "@contracts/username";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,14 +90,15 @@ export default function Register() {
     return true;
   };
 
-  const handleSendEmailCode = () => {
+  const handleSendEmailCode = async (captchaVerifyParam: string) => {
     setError("");
     setMessage("");
     if (!normalizedEmail) {
       setError("请先输入邮箱。");
-      return;
+      return false;
     }
-    sendEmailCode.mutate({ email: normalizedEmail });
+    await sendEmailCode.mutateAsync({ email: normalizedEmail, captchaVerifyParam });
+    return true;
   };
 
   const handleRegister = (e: FormEvent) => {
@@ -144,6 +146,21 @@ export default function Register() {
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
+              <Label htmlFor="name">用户名</Label>
+              <Input
+                id="name"
+                autoComplete="username"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={USERNAME_HINT}
+                className="mt-1.5 bg-background"
+                maxLength={USERNAME_MAX_UNITS}
+                required
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{USERNAME_HINT}</p>
+            </div>
+
+            <div>
               <Label htmlFor="phone">手机号</Label>
               <Input
                 id="phone"
@@ -158,7 +175,7 @@ export default function Register() {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
               <div>
                 <Label htmlFor="sms-code">短信验证码</Label>
                 <Input
@@ -176,20 +193,8 @@ export default function Register() {
                 disabled={sendSmsCode.isPending || normalizedPhone.length !== 11}
                 onVerify={handleSendSmsCode}
               >
-                {sendSmsCode.isPending ? "发送中..." : "发送短信码"}
+                {sendSmsCode.isPending ? "发送中..." : "发送验证码"}
               </AliyunCaptchaButton>
-            </div>
-
-            <div>
-              <Label htmlFor="name">用户名</Label>
-              <Input
-                id="name"
-                autoComplete="username"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1.5 bg-background"
-                required
-              />
             </div>
 
             <div className="rounded-lg border border-border/70 bg-muted/30 p-3 space-y-3">
@@ -207,7 +212,7 @@ export default function Register() {
                 />
               </div>
               {normalizedEmail ? (
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
                   <div>
                     <Label htmlFor="email-code">邮箱验证码</Label>
                     <Input
@@ -219,9 +224,13 @@ export default function Register() {
                       className="mt-1.5 bg-background"
                     />
                   </div>
-                  <Button type="button" variant="outline" onClick={handleSendEmailCode} disabled={sendEmailCode.isPending}>
+                  <AliyunCaptchaButton
+                    config={captchaConfig.data}
+                    disabled={sendEmailCode.isPending || !normalizedEmail}
+                    onVerify={handleSendEmailCode}
+                  >
                     {sendEmailCode.isPending ? "发送中..." : "发送邮箱码"}
-                  </Button>
+                  </AliyunCaptchaButton>
                 </div>
               ) : null}
             </div>

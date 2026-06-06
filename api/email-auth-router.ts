@@ -14,6 +14,7 @@ import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
 import { getSessionCookieOptions } from "./lib/cookies";
 import { Session } from "@contracts/constants";
+import { USERNAME_MAX_UNITS, assertValidUsername } from "@contracts/username";
 import { toCurrentUser } from "./lib/user-dto";
 import { sendVerificationEmail } from "./lib/mail";
 import { assertPasswordPolicy } from "./lib/password-policy";
@@ -236,11 +237,14 @@ export const emailAuthRouter = createRouter({
     .input(
       z.object({
         email: z.string().email("请输入有效邮箱地址"),
+        captchaVerifyParam: z.string().min(1, "请先完成人机验证"),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const email = normalizeEmail(input.email);
       const ip = requestIp(ctx.req.headers);
+      await rateLimitCaptcha(ip, email, "email-bind");
+      await verifyAliyunCaptcha(input.captchaVerifyParam);
       await rateLimitEmailCodeSend(ip, email, "bind");
 
       const existing = await findUserByEmail(email);
@@ -256,12 +260,14 @@ export const emailAuthRouter = createRouter({
     .input(
       z.object({
         email: z.string().email("请输入有效邮箱地址"),
-        captchaVerifyParam: z.string().optional(),
+        captchaVerifyParam: z.string().min(1, "请先完成人机验证"),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const email = normalizeEmail(input.email);
       const ip = requestIp(ctx.req.headers);
+      await rateLimitCaptcha(ip, email, "email-bind");
+      await verifyAliyunCaptcha(input.captchaVerifyParam);
       await rateLimitEmailCodeSend(ip, email, "bind");
       const existing = await findUserByEmail(email);
       if (!existing) {
@@ -277,7 +283,7 @@ export const emailAuthRouter = createRouter({
         smsCode: z.string().min(4, "请输入短信验证码").max(8, "验证码过长"),
         email: z.string().email("请输入有效邮箱地址").optional().or(z.literal("")),
         emailCode: z.string().optional(),
-        name: z.string().min(1, "请输入用户名").max(50, "用户名过长"),
+        name: z.string().min(1, "请输入用户名").max(USERNAME_MAX_UNITS, "用户名过长"),
         password: z.string().min(8),
         passwordConfirm: z.string().min(8),
       }),
@@ -299,6 +305,7 @@ export const emailAuthRouter = createRouter({
         throw new Error("两次输入的密码不一致。");
       }
       assertPasswordPolicy(input.password);
+      assertValidUsername(input.name);
       await ensureNameAvailable(input.name.trim());
 
       const existingPhone = await findUserByPhone(phone);

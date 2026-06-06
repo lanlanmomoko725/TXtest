@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { AliyunCaptchaButton } from "@/components/AliyunCaptchaButton";
+import { USERNAME_HINT, USERNAME_MAX_UNITS } from "@contracts/username";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -161,6 +162,17 @@ export default function AccountInfo() {
     return true;
   };
 
+  const handleSendEmailCode = async (captchaVerifyParam: string) => {
+    setError("");
+    setMessage("");
+    if (!email.trim()) {
+      setError("请先输入邮箱。");
+      return false;
+    }
+    await sendBindEmailCode.mutateAsync({ email: email.trim(), captchaVerifyParam });
+    return true;
+  };
+
   const handleBindPhone = (e: FormEvent) => {
     e.preventDefault();
     bindPhone.mutate({ phone: phone.trim(), smsCode });
@@ -273,11 +285,13 @@ export default function AccountInfo() {
                   id="account-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  placeholder={USERNAME_HINT}
                   className="mt-1.5"
-                  maxLength={20}
+                  maxLength={USERNAME_MAX_UNITS}
                   disabled={nameLocked}
                   required
                 />
+                <p className="mt-1 text-xs text-muted-foreground">{USERNAME_HINT}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{nameQuotaText}</p>
                 {pendingName ? (
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -308,7 +322,7 @@ export default function AccountInfo() {
                 <Label htmlFor="bind-email">邮箱</Label>
                 <Input id="bind-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" placeholder="name@example.com" required />
               </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
                 <div>
                   <Label htmlFor="bind-email-code">邮箱验证码</Label>
                   <Input
@@ -321,9 +335,13 @@ export default function AccountInfo() {
                     required
                   />
                 </div>
-                <Button type="button" variant="outline" onClick={() => sendBindEmailCode.mutate({ email: email.trim() })} disabled={sendBindEmailCode.isPending || !email.trim()}>
+                <AliyunCaptchaButton
+                  config={captchaConfig.data}
+                  disabled={sendBindEmailCode.isPending || !email.trim()}
+                  onVerify={handleSendEmailCode}
+                >
                   {sendBindEmailCode.isPending ? "发送中..." : "发送邮箱码"}
-                </Button>
+                </AliyunCaptchaButton>
               </div>
               <Button type="submit" disabled={bindEmail.isPending || !email.trim() || emailCode.length !== 6}>
                 {bindEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
@@ -360,7 +378,7 @@ export default function AccountInfo() {
                   required
                 />
               </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
                 <div>
                   <Label htmlFor="bind-phone-code">短信验证码</Label>
                   <Input

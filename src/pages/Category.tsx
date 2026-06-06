@@ -6,15 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { CATEGORY_LABEL_MAP, SKY_CATEGORIES } from "@contracts/constants";
 import { Cloud, MapPin, Loader2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router";
+import { useState } from "react";
 
 export default function CategoryPage() {
   const { categoryId, regionId } = useParams<{ categoryId?: string; regionId?: string }>();
+  const [sort, setSort] = useState<"time" | "hot">("time");
   
   const isRegion = !!regionId;
   
   const { data: posts, isLoading } = trpc.post.list.useQuery({
     category: categoryId,
     region: regionId,
+    sort,
     limit: 24,
     offset: 0,
   });
@@ -57,10 +60,10 @@ export default function CategoryPage() {
         </div>
 
         {/* Filter Tabs */}
-        <Tabs defaultValue="latest" className="mb-6">
+        <Tabs value={sort} onValueChange={(value) => setSort(value as "time" | "hot")} className="mb-6">
           <TabsList>
-            <TabsTrigger value="latest">最新</TabsTrigger>
-            <TabsTrigger value="hottest">最热</TabsTrigger>
+            <TabsTrigger value="time">最新</TabsTrigger>
+            <TabsTrigger value="hot">最热</TabsTrigger>
           </TabsList>
         </Tabs>
 

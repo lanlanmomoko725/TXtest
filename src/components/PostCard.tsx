@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import type { MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -24,11 +24,9 @@ type PostCardData = Post & {
 interface PostCardProps {
   post: PostCardData;
   hideMeta?: boolean;
-  showLikeButton?: boolean;
 }
 
-export default function PostCard({ post, hideMeta, showLikeButton }: PostCardProps) {
-  const navigate = useNavigate();
+export default function PostCard({ post, hideMeta }: PostCardProps) {
   const utils = trpc.useUtils();
   const { isAuthenticated } = useAuth();
   const categoryLabel = CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
@@ -38,20 +36,22 @@ export default function PostCard({ post, hideMeta, showLikeButton }: PostCardPro
     ? post.title
     : plainContent;
   const weeklyLikeCount = post.weeklyLikeCount ?? post.likeCount ?? 0;
+  const showLikeButton = isAuthenticated && !hideMeta && !post.skyGalleryCategory;
   const toggleLike = trpc.post.toggleLike.useMutation({
     onSuccess: async () => {
-      await utils.post.list.invalidate();
-      await utils.post.byId.invalidate({ id: post.id });
+      await Promise.all([
+        utils.post.list.invalidate(),
+        utils.post.byId.invalidate({ id: post.id }),
+        utils.post.featured.invalidate(),
+        utils.post.byTag.invalidate(),
+        utils.post.search.invalidate(),
+      ]);
     },
   });
 
   const handleLikeClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!isAuthenticated) {
-      navigate("/login");
-      return;
-    }
     toggleLike.mutate({ postId: post.id });
   };
 

@@ -196,7 +196,15 @@ export const comments = mysqlTable("comments", {
   parentId: bigint("parentId", { mode: "number", unsigned: true }),
   replyToUserId: bigint("replyToUserId", { mode: "number", unsigned: true }),
   content: text("content").notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("approved").notNull(),
+  reviewedBy: bigint("reviewedBy", { mode: "number", unsigned: true }),
+  reviewedAt: timestamp("reviewedAt"),
+  rejectReason: varchar("rejectReason", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
 });
 
 export type Comment = typeof comments.$inferSelect;

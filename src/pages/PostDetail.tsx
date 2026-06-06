@@ -16,6 +16,7 @@ import {
   Calendar,
   ChevronRight,
   Eye,
+  Heart,
   Loader2,
   MapPin,
   MessageCircle,
@@ -35,6 +36,7 @@ export default function PostDetail() {
   const [replyContent, setReplyContent] = useState("");
   const [replyTarget, setReplyTarget] = useState<{ id: number; name: string } | null>(null);
   const [commentError, setCommentError] = useState("");
+  const [commentMessage, setCommentMessage] = useState("");
 
   const { data: post, isLoading: postLoading } = trpc.post.byId.useQuery(
     { id: postId },
@@ -46,14 +48,18 @@ export default function PostDetail() {
 
   const utils = trpc.useUtils();
   const createComment = trpc.comment.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       setCommentContent("");
       setReplyContent("");
       setReplyTarget(null);
       setCommentError("");
+      setCommentMessage(data.pendingReview ? "评论已提交审核，通过后公开。" : "评论已发布。");
       refetchComments();
     },
-    onError: (err) => setCommentError(err.message),
+    onError: (err) => {
+      setCommentError(err.message);
+      setCommentMessage("");
+    },
   });
 
   const deleteComment = trpc.comment.delete.useMutation({
@@ -75,6 +81,18 @@ export default function PostDetail() {
     },
   });
 
+  const toggleLike = trpc.post.toggleLike.useMutation({
+    onSuccess: async () => {
+      await Promise.all([
+        utils.post.byId.invalidate({ id: postId }),
+        utils.post.list.invalidate(),
+        utils.post.featured.invalidate(),
+        utils.post.byTag.invalidate(),
+        utils.post.search.invalidate(),
+      ]);
+    },
+  });
+
   const isAdmin = !!user && user.level >= 99;
   const isAuthor = post?.authorId === user?.id;
   const isSkyGallery = !!post?.skyGalleryCategory;
@@ -84,6 +102,7 @@ export default function PostDetail() {
     const trimmed = content.trim();
     if (!trimmed) return;
     setCommentError("");
+    setCommentMessage("");
     createComment.mutate({ postId, content: trimmed, replyToCommentId });
   };
 
@@ -94,6 +113,11 @@ export default function PostDetail() {
     if (confirm(message)) {
       deleteComment.mutate({ id });
     }
+  };
+
+  const handleToggleLike = () => {
+    if (!post || post.skyGalleryCategory) return;
+    toggleLike.mutate({ postId });
   };
 
   if (postLoading) {
@@ -121,6 +145,7 @@ export default function PostDetail() {
   const categoryLabel =
     CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images : [];
+  const weeklyLikeCount = post.weeklyLikeCount ?? post.likeCount ?? 0;
 
   return (
     <TooltipProvider>
@@ -213,6 +238,35 @@ export default function PostDetail() {
               )}
 
               <div className="flex items-center gap-2">
+                {isAuthenticated && !isSkyGallery && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleToggleLike}
+                        disabled={toggleLike.isPending}
+                        aria-label={post.likedByMe ? "取消点赞" : "点赞"}
+                        aria-pressed={Boolean(post.likedByMe)}
+                        className={`h-9 rounded-lg px-3 gap-1.5 ${
+                          post.likedByMe
+                            ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                            : "border-border text-muted-foreground hover:border-red-200 hover:text-red-600"
+                        }`}
+                      >
+                        {toggleLike.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Heart className={`h-4 w-4 ${post.likedByMe ? "fill-current" : ""}`} />
+                        )}
+                        <span className="tabular-nums">{weeklyLikeCount}</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{post.likedByMe ? "取消点赞" : "点赞"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
                 {isAdmin && !isSkyGallery && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -305,9 +359,15 @@ export default function PostDetail() {
                     ) : (
                       <Send className="h-4 w-4 mr-1.5" />
                     )}
-                    发表评论
+                    {isAdmin ? "发表评论" : "提交审核"}
                   </Button>
                 </div>
+                {!isAdmin ? (
+                  <p className="mt-3 text-xs text-muted-foreground">普通用户评论需管理员审核后公开。</p>
+                ) : null}
+                {commentMessage && !replyTarget && (
+                  <p className="mt-3 text-sm text-emerald-600">{commentMessage}</p>
+                )}
                 {commentError && !replyTarget && (
                   <p className="mt-3 text-sm text-destructive">{commentError}</p>
                 )}
@@ -355,6 +415,7 @@ export default function PostDetail() {
                                 setReplyTarget({ id: comment.id, name: comment.author?.name || "匿名用户" });
                                 setReplyContent("");
                                 setCommentError("");
+                                setCommentMessage("");
                               }}
                             >
                               <Reply className="h-3.5 w-3.5" />
@@ -394,9 +455,10 @@ export default function PostDetail() {
                             disabled={createComment.isPending || !replyContent.trim()}
                           >
                             {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                            回复
+                            {isAdmin ? "回复" : "提交审核"}
                           </Button>
                         </div>
+                        {commentMessage && <p className="mt-2 text-sm text-emerald-600">{commentMessage}</p>}
                         {commentError && <p className="mt-2 text-sm text-destructive">{commentError}</p>}
                       </div>
                     )}
@@ -435,6 +497,7 @@ export default function PostDetail() {
                                       setReplyTarget({ id: reply.id, name: reply.author?.name || "匿名用户" });
                                       setReplyContent("");
                                       setCommentError("");
+                                      setCommentMessage("");
                                     }}
                                   >
                                     <Reply className="h-3.5 w-3.5" />
@@ -471,9 +534,10 @@ export default function PostDetail() {
                                       disabled={createComment.isPending || !replyContent.trim()}
                                     >
                                       {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                                      回复
+                                      {isAdmin ? "回复" : "提交审核"}
                                     </Button>
                                   </div>
+                                  {commentMessage && <p className="mt-2 text-sm text-emerald-600">{commentMessage}</p>}
                                   {commentError && <p className="mt-2 text-sm text-destructive">{commentError}</p>}
                                 </div>
                               )}

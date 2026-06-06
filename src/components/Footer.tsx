@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Heart, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { SKY_CATEGORIES } from "@contracts/constants";
 
 const quickLinks = [
@@ -28,12 +28,8 @@ export default function Footer() {
               <span>天象志</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              记录天空的每一种奇迹，<br />
-              为天象爱好者打造的分享社区。
+              记录天空的每一种奇迹！
             </p>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              用 <Heart className="inline h-3 w-3 text-red-400 fill-red-400" /> 精心打造
-            </div>
           </div>
 
           {/* Quick Links */}

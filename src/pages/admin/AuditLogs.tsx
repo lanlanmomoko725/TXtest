@@ -19,6 +19,8 @@ const actionLabels: Record<string, string> = {
   remove_admin_email: "移除管理员邮箱",
   approve_profile_change: "通过资料审核",
   reject_profile_change: "拒绝资料审核",
+  approve_comment: "通过评论审核",
+  reject_comment: "拒绝评论审核",
 };
 
 const eventLabels: Record<string, string> = {
@@ -46,6 +48,8 @@ const actionVariants: Record<string, "default" | "secondary" | "destructive" | "
   update_user_role: "default",
   approve_profile_change: "default",
   reject_profile_change: "destructive",
+  approve_comment: "default",
+  reject_comment: "destructive",
 };
 
 export default function AdminAuditLogs() {

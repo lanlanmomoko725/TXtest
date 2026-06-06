@@ -44,8 +44,8 @@ function normalizeImages(images: unknown): string[] | null {
   return null;
 }
 
-function isRealtimeSkyPost(post: typeof schema.posts.$inferSelect) {
-  return !post.skyGalleryCategory && !post.isArticle && !post.isSkyExplanation;
+function isLikablePost(post: typeof schema.posts.$inferSelect) {
+  return !post.skyGalleryCategory;
 }
 
 export function shanghaiWeekStart(now = new Date()) {
@@ -184,8 +184,8 @@ export async function findPostById(id: number, currentUserId?: number) {
   return withMeta;
 }
 
-export async function findFeaturedPosts(limit = 6) {
-  return findPosts({ featured: true, limit });
+export async function findFeaturedPosts(limit = 6, currentUserId?: number) {
+  return findPosts({ featured: true, limit, currentUserId });
 }
 
 // Extract plain text from HTML content (for auto-title generation)
@@ -309,7 +309,7 @@ export async function togglePostLike(postId: number, userId: number) {
   const post = await getDb().query.posts.findFirst({
     where: eq(schema.posts.id, postId),
   });
-  if (!post || !isRealtimeSkyPost(post)) {
+  if (!post || !isLikablePost(post)) {
     throw new Error("帖子不存在或不支持点赞。");
   }
 
@@ -335,10 +335,11 @@ export async function togglePostLike(postId: number, userId: number) {
 export async function searchPosts(options: {
   keyword: string;
   sort?: "relevance" | "time" | "hot";
+  currentUserId?: number;
   limit?: number;
   offset?: number;
 }) {
-  const { keyword, sort = "relevance", limit = 20, offset = 0 } = options;
+  const { keyword, sort = "relevance", currentUserId, limit = 20, offset = 0 } = options;
   const db = getDb();
   const likePattern = `%${keyword}%`;
 
@@ -360,7 +361,13 @@ export async function searchPosts(options: {
     )`;
     orderByClause = [desc(relevanceScore), desc(schema.posts.createdAt)];
   } else if (sort === "hot") {
-    orderByClause = [desc(schema.posts.viewCount), desc(schema.posts.createdAt)];
+    const weeklyLikeScore = sql<number>`(
+      SELECT COUNT(*)
+      FROM ${schema.postLikes}
+      WHERE ${schema.postLikes.postId} = ${schema.posts.id}
+        AND ${schema.postLikes.createdAt} >= ${shanghaiWeekStart()}
+    )`;
+    orderByClause = [desc(weeklyLikeScore), desc(schema.posts.createdAt)];
   } else {
     // time
     orderByClause = [desc(schema.posts.createdAt)];
@@ -382,22 +389,8 @@ export async function searchPosts(options: {
     .limit(limit)
     .offset(offset);
 
-  const authorMap = await findPublicUsersByIds(posts.map((p) => p.authorId));
-
   return {
-    posts: posts.map((post) => {
-      const content = sanitizeHtml(post.content);
-      let images = normalizeImages(post.images);
-      if (!images || images.length === 0) {
-        images = extractImagesFromHtml(content);
-      }
-      return {
-        ...post,
-        content,
-        images: images.length > 0 ? images : null,
-        author: authorMap.get(post.authorId) || null,
-      };
-    }),
+    posts: await attachPostMeta(posts, currentUserId),
     total,
   };
 }

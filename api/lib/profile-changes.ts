@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { isSafeAvatarUploadPath } from "@contracts/upload-path";
+import { assertValidUsername } from "@contracts/username";
 import * as schema from "@db/schema";
 import type { User } from "@db/schema";
 import { getDb } from "../queries/connection";
@@ -70,6 +71,7 @@ export async function validateProfileChangeRequest(user: User, type: ProfileChan
   }
 
   if (type === "name") {
+    assertValidUsername(nextValue);
     if (nextValue === user.name) {
       throw new Error("用户名没有变化。");
     }
@@ -228,6 +230,7 @@ export async function reviewProfileChangeRequest(options: {
   }
 
   if (request.type === "name") {
+    assertValidUsername(request.value);
     await ensureNameAvailableForUser(request.value, user.id);
     await updateUser(user.id, { name: request.value });
   } else if (request.type === "avatar") {
