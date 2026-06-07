@@ -32,6 +32,7 @@ import {
 
 const INITIAL_REPLY_LIMIT = 3;
 const REPLY_PAGE_SIZE = 10;
+const COMMENT_MAX_LENGTH = 300;
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
@@ -71,7 +72,11 @@ export default function PostDetail() {
 
   const deleteComment = trpc.comment.delete.useMutation({
     onSuccess: () => {
+      setCommentError("");
       refetchComments();
+    },
+    onError: (err) => {
+      setCommentError(err.message);
     },
   });
 
@@ -108,6 +113,11 @@ export default function PostDetail() {
   const handleCreateComment = (content: string, replyToCommentId?: number) => {
     const trimmed = content.trim();
     if (!trimmed) return;
+    if (trimmed.length > COMMENT_MAX_LENGTH) {
+      setCommentError(`评论最多 ${COMMENT_MAX_LENGTH} 个字符。`);
+      setCommentMessage("");
+      return;
+    }
     setCommentError("");
     setCommentMessage("");
     createComment.mutate({ postId, content: trimmed, replyToCommentId });
@@ -176,6 +186,8 @@ export default function PostDetail() {
     CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images : [];
   const weeklyLikeCount = post.weeklyLikeCount ?? post.likeCount ?? 0;
+  const commentContentLength = commentContent.trim().length;
+  const replyContentLength = replyContent.trim().length;
 
   return (
     <TooltipProvider>
@@ -370,13 +382,17 @@ export default function PostDetail() {
                   placeholder="写下你的评论..."
                   value={commentContent}
                   onChange={(e) => setCommentContent(e.target.value)}
+                  maxLength={COMMENT_MAX_LENGTH}
                   className="mb-3 bg-background border-border/60 focus-visible:ring-2 focus-visible:ring-primary/30 resize-none"
                   rows={3}
                 />
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`text-xs tabular-nums ${commentContentLength > COMMENT_MAX_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
+                    {commentContentLength}/{COMMENT_MAX_LENGTH}
+                  </span>
                   <Button
                     onClick={() => handleCreateComment(commentContent)}
-                    disabled={createComment.isPending || !commentContent.trim()}
+                    disabled={createComment.isPending || !commentContent.trim() || commentContentLength > COMMENT_MAX_LENGTH}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
                   >
                     {createComment.isPending ? (
@@ -418,7 +434,7 @@ export default function PostDetail() {
                   return (
                     <div key={comment.id} className="rounded-xl border border-border/40 bg-background p-4 transition-colors hover:bg-muted/20">
                       <div className="flex gap-3">
-                        <div className="flex min-h-[3.75rem] items-center">
+                        <div className="flex flex-shrink-0 pt-0.5">
                           <Avatar className="h-9 w-9 flex-shrink-0 border border-border/50">
                             <AvatarImage src={comment.author?.avatar || undefined} />
                             <AvatarFallback className="bg-primary/10 text-primary text-xs">
@@ -427,10 +443,10 @@ export default function PostDetail() {
                           </Avatar>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm leading-relaxed text-foreground/85">
+                          <p className="break-words text-sm leading-relaxed text-foreground/85">
                             <span className="font-medium text-primary">{authorName}</span>
                             <span>：</span>
-                            <span className="whitespace-pre-wrap">{comment.content}</span>
+                            <span className="whitespace-pre-wrap break-words">{comment.content}</span>
                           </p>
                           <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
                             <span className="tabular-nums">{formatShortDateTime(comment.createdAt)}</span>
@@ -458,20 +474,26 @@ export default function PostDetail() {
                                       placeholder={`回复 ${authorName}...`}
                                       value={replyContent}
                                       onChange={(e) => setReplyContent(e.target.value)}
+                                      maxLength={COMMENT_MAX_LENGTH}
                                       className="mb-2 min-h-24 resize-none bg-background"
                                     />
-                                    <div className="flex items-center justify-end gap-2">
-                                      <Button variant="ghost" size="sm" onClick={closeReply}>
-                                        取消
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        onClick={() => handleCreateComment(replyContent, comment.id)}
-                                        disabled={createComment.isPending || !replyContent.trim()}
-                                      >
-                                        {createComment.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                                        {isAdmin ? "回复" : "提交审核"}
-                                      </Button>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className={`text-xs tabular-nums ${replyContentLength > COMMENT_MAX_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
+                                        {replyContentLength}/{COMMENT_MAX_LENGTH}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <Button variant="ghost" size="sm" onClick={closeReply}>
+                                          取消
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleCreateComment(replyContent, comment.id)}
+                                          disabled={createComment.isPending || !replyContent.trim() || replyContentLength > COMMENT_MAX_LENGTH}
+                                        >
+                                          {createComment.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                                          {isAdmin ? "回复" : "提交审核"}
+                                        </Button>
+                                      </div>
                                     </div>
                                     {commentError && replyTarget?.id === comment.id ? (
                                       <p className="mt-2 text-sm text-destructive">{commentError}</p>
@@ -479,7 +501,7 @@ export default function PostDetail() {
                                   </PopoverContent>
                                 </Popover>
                               ) : null}
-                              {isAdmin ? (
+                              {isAdmin || comment.authorId === user?.id ? (
                                 <button
                                   type="button"
                                   className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
@@ -501,7 +523,7 @@ export default function PostDetail() {
 
                                 return (
                                   <div key={reply.id} className="rounded-md py-1.5">
-                                    <p className="text-sm leading-relaxed text-foreground/85">
+                                    <p className="break-words text-sm leading-relaxed text-foreground/85">
                                       <span className="font-medium text-primary">{replyAuthorName}</span>
                                       <span>：</span>
                                       {replyToName ? (
@@ -511,7 +533,7 @@ export default function PostDetail() {
                                           <span>：</span>
                                         </>
                                       ) : null}
-                                      <span className="whitespace-pre-wrap">{reply.content}</span>
+                                      <span className="whitespace-pre-wrap break-words">{reply.content}</span>
                                     </p>
                                     <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
                                       <span className="tabular-nums">{formatShortDateTime(reply.createdAt)}</span>
@@ -539,20 +561,26 @@ export default function PostDetail() {
                                                 placeholder={`回复 ${replyAuthorName}...`}
                                                 value={replyContent}
                                                 onChange={(e) => setReplyContent(e.target.value)}
+                                                maxLength={COMMENT_MAX_LENGTH}
                                                 className="mb-2 min-h-24 resize-none bg-background"
                                               />
-                                              <div className="flex items-center justify-end gap-2">
-                                                <Button variant="ghost" size="sm" onClick={closeReply}>
-                                                  取消
-                                                </Button>
-                                                <Button
-                                                  size="sm"
-                                                  onClick={() => handleCreateComment(replyContent, reply.id)}
-                                                  disabled={createComment.isPending || !replyContent.trim()}
-                                                >
-                                                  {createComment.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-                                                  {isAdmin ? "回复" : "提交审核"}
-                                                </Button>
+                                              <div className="flex items-center justify-between gap-2">
+                                                <span className={`text-xs tabular-nums ${replyContentLength > COMMENT_MAX_LENGTH ? "text-destructive" : "text-muted-foreground"}`}>
+                                                  {replyContentLength}/{COMMENT_MAX_LENGTH}
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                  <Button variant="ghost" size="sm" onClick={closeReply}>
+                                                    取消
+                                                  </Button>
+                                                  <Button
+                                                    size="sm"
+                                                    onClick={() => handleCreateComment(replyContent, reply.id)}
+                                                    disabled={createComment.isPending || !replyContent.trim() || replyContentLength > COMMENT_MAX_LENGTH}
+                                                  >
+                                                    {createComment.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                                                    {isAdmin ? "回复" : "提交审核"}
+                                                  </Button>
+                                                </div>
                                               </div>
                                               {commentError && replyTarget?.id === reply.id ? (
                                                 <p className="mt-2 text-sm text-destructive">{commentError}</p>
@@ -560,7 +588,7 @@ export default function PostDetail() {
                                             </PopoverContent>
                                           </Popover>
                                         ) : null}
-                                        {isAdmin ? (
+                                        {isAdmin || reply.authorId === user?.id ? (
                                           <button
                                             type="button"
                                             className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"

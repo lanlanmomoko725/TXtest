@@ -1,16 +1,19 @@
+import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Check, Loader2, UserCheck, X } from "lucide-react";
+import { Check, Loader2, Search, UserCheck, X } from "lucide-react";
 
 function typeLabel(type: string) {
   return type === "avatar" ? "头像" : "用户名";
 }
 
 export default function AdminProfileReviews() {
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const utils = trpc.useUtils();
   const { data: requests, isLoading } = trpc.admin.profileChanges.pending.useQuery();
   const review = trpc.admin.profileChanges.review.useMutation({
@@ -77,10 +80,20 @@ export default function AdminProfileReviews() {
                     <TableCell>
                       {request.type === "avatar" ? (
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={request.value} />
-                            <AvatarFallback>头像</AvatarFallback>
-                          </Avatar>
+                          <button
+                            type="button"
+                            className="group relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            onClick={() => setPreviewAvatar(request.value)}
+                            aria-label="放大查看提交的头像"
+                          >
+                            <Avatar className="h-12 w-12">
+                              <AvatarImage src={request.value} />
+                              <AvatarFallback>头像</AvatarFallback>
+                            </Avatar>
+                            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                              <Search className="h-4 w-4" />
+                            </span>
+                          </button>
                           <span className="max-w-[220px] truncate text-xs text-muted-foreground">{request.value}</span>
                         </div>
                       ) : (
@@ -119,6 +132,25 @@ export default function AdminProfileReviews() {
           )}
         </CardContent>
       </Card>
+      <Dialog open={!!previewAvatar} onOpenChange={(open) => !open && setPreviewAvatar(null)}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>头像预览</DialogTitle>
+          </DialogHeader>
+          <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-lg bg-muted/40 p-4">
+            {previewAvatar ? (
+              <img
+                src={previewAvatar}
+                alt="提交审核的头像预览"
+                className="max-h-[70vh] w-auto max-w-full rounded-md object-contain"
+              />
+            ) : null}
+          </div>
+          {previewAvatar ? (
+            <p className="break-all text-xs text-muted-foreground">{previewAvatar}</p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

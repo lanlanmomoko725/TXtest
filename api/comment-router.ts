@@ -1,11 +1,14 @@
 import { z } from "zod";
-import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware";
-import { findCommentsByPost, createComment, deleteCommentThread } from "./queries/comments";
+import { TRPCError } from "@trpc/server";
+import { createRouter, publicQuery, authedQuery } from "./middleware";
+import { findCommentsByPost, createComment, deleteCommentThread, findCommentById } from "./queries/comments";
 import { assertCommentAllowed } from "./lib/comment-filter";
 import { createAuditLog } from "./lib/audit";
 import { consumeRateLimit, rateLimitKey } from "./lib/rate-limit";
 import { requestIp } from "./lib/request-info";
 import { recordSecurityEvent } from "./lib/security-events";
+
+const COMMENT_MAX_LENGTH = 300;
 
 export const commentRouter = createRouter({
   list: publicQuery
@@ -18,7 +21,7 @@ export const commentRouter = createRouter({
     .input(
       z.object({
         postId: z.number().int().positive(),
-        content: z.string().min(1).max(2000),
+        content: z.string().trim().min(1, "评论不能为空。").max(COMMENT_MAX_LENGTH, "评论最多 300 个字符。"),
         replyToCommentId: z.number().int().positive().optional(),
       }),
     )
@@ -70,9 +73,25 @@ export const commentRouter = createRouter({
       return { comment, pendingReview };
     }),
 
-  delete: adminQuery
+  delete: authedQuery
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      const target = await findCommentById(input.id);
+      if (!target) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "评论不存在。",
+        });
+      }
+
+      const isAdmin = ctx.user.level >= 99;
+      if (!isAdmin && target.authorId !== ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "只能删除自己发布的评论。",
+        });
+      }
+
       const deleted = await deleteCommentThread(input.id);
       await createAuditLog({
         userId: ctx.user.id,
@@ -83,6 +102,7 @@ export const commentRouter = createRouter({
           postId: deleted.postId,
           authorId: deleted.authorId,
           parentId: deleted.parentId,
+          deletedByOwner: deleted.authorId === ctx.user.id,
         },
       });
       return { success: true };
