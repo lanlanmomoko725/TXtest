@@ -8,12 +8,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ImageGallery from "@/components/ImageGallery";
 import TagContent from "@/components/TagContent";
+import { formatShortDateTime } from "@/lib/date-format";
 import { CATEGORY_LABEL_MAP } from "@contracts/constants";
 import {
   ArrowLeft,
   Calendar,
+  ChevronDown,
   ChevronRight,
   Eye,
   Heart,
@@ -27,6 +30,9 @@ import {
   User,
 } from "lucide-react";
 
+const INITIAL_REPLY_LIMIT = 3;
+const REPLY_PAGE_SIZE = 10;
+
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
   const postId = parseInt(id || "0", 10);
@@ -37,6 +43,7 @@ export default function PostDetail() {
   const [replyTarget, setReplyTarget] = useState<{ id: number; name: string } | null>(null);
   const [commentError, setCommentError] = useState("");
   const [commentMessage, setCommentMessage] = useState("");
+  const [expandedReplies, setExpandedReplies] = useState<Record<number, number>>({});
 
   const { data: post, isLoading: postLoading } = trpc.post.byId.useQuery(
     { id: postId },
@@ -104,6 +111,29 @@ export default function PostDetail() {
     setCommentError("");
     setCommentMessage("");
     createComment.mutate({ postId, content: trimmed, replyToCommentId });
+  };
+
+  const openReply = (target: { id: number; name: string }) => {
+    setReplyTarget(target);
+    setReplyContent("");
+    setCommentError("");
+    setCommentMessage("");
+  };
+
+  const closeReply = () => {
+    setReplyTarget(null);
+    setReplyContent("");
+    setCommentError("");
+  };
+
+  const expandReplies = (commentId: number, total: number) => {
+    setExpandedReplies((prev) => {
+      const current = prev[commentId] ?? INITIAL_REPLY_LIMIT;
+      return {
+        ...prev,
+        [commentId]: Math.min(total, current + REPLY_PAGE_SIZE),
+      };
+    });
   };
 
   const handleDeleteComment = (id: number, hasReplies: boolean) => {
@@ -218,12 +248,7 @@ export default function PostDetail() {
                     <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground tabular-nums">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        <span className="hidden sm:inline">
-                          {new Date(post.createdAt).toLocaleString("zh-CN", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
-                        </span>
-                        <span className="sm:hidden">
-                          {new Date(post.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
-                        </span>
+                        {formatShortDateTime(post.createdAt)}
                       </span>
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
@@ -362,9 +387,6 @@ export default function PostDetail() {
                     {isAdmin ? "发表评论" : "提交审核"}
                   </Button>
                 </div>
-                {!isAdmin ? (
-                  <p className="mt-3 text-xs text-muted-foreground">普通用户评论需管理员审核后公开。</p>
-                ) : null}
                 {commentMessage && !replyTarget && (
                   <p className="mt-3 text-sm text-emerald-600">{commentMessage}</p>
                 )}
@@ -387,167 +409,190 @@ export default function PostDetail() {
               </div>
             ) : comments && comments.length > 0 ? (
               <div className="space-y-4">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="rounded-xl bg-muted/30 border border-border/40 p-4 transition-colors hover:bg-muted/50">
-                    <div className="flex gap-3">
-                      <Avatar className="h-9 w-9 flex-shrink-0 border border-border/50">
-                        <AvatarImage src={comment.author?.avatar || undefined} />
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                          <User className="h-4 w-4" />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="font-medium text-sm text-foreground">
-                            {comment.author?.name || "匿名用户"}
-                          </span>
-                          <span className="text-xs text-muted-foreground tabular-nums">
-                            {new Date(comment.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
-                          </span>
+                {comments.map((comment) => {
+                  const authorName = comment.author?.name || "匿名用户";
+                  const replyLimit = Math.min(comment.replies.length, expandedReplies[comment.id] ?? INITIAL_REPLY_LIMIT);
+                  const visibleReplies = comment.replies.slice(0, replyLimit);
+                  const hiddenReplyCount = comment.replies.length - visibleReplies.length;
+
+                  return (
+                    <div key={comment.id} className="rounded-xl border border-border/40 bg-background p-4 transition-colors hover:bg-muted/20">
+                      <div className="flex gap-3">
+                        <div className="flex min-h-[3.75rem] items-center">
+                          <Avatar className="h-9 w-9 flex-shrink-0 border border-border/50">
+                            <AvatarImage src={comment.author?.avatar || undefined} />
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                              <User className="h-4 w-4" />
+                            </AvatarFallback>
+                          </Avatar>
                         </div>
-                        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
-                        <div className="mt-2 flex items-center gap-3 text-xs">
-                          {isAuthenticated && (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
-                              onClick={() => {
-                                setReplyTarget({ id: comment.id, name: comment.author?.name || "匿名用户" });
-                                setReplyContent("");
-                                setCommentError("");
-                                setCommentMessage("");
-                              }}
-                            >
-                              <Reply className="h-3.5 w-3.5" />
-                              回复
-                            </button>
-                          )}
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-1 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDeleteComment(comment.id, comment.replies.length > 0)}
-                              disabled={deleteComment.isPending}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              删除
-                            </button>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm leading-relaxed text-foreground/85">
+                            <span className="font-medium text-primary">{authorName}</span>
+                            <span>：</span>
+                            <span className="whitespace-pre-wrap">{comment.content}</span>
+                          </p>
+                          <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                            <span className="tabular-nums">{formatShortDateTime(comment.createdAt)}</span>
+                            <div className="flex items-center gap-2">
+                              {isAuthenticated ? (
+                                <Popover
+                                  open={replyTarget?.id === comment.id}
+                                  onOpenChange={(open) => {
+                                    if (open) openReply({ id: comment.id, name: authorName });
+                                    else if (replyTarget?.id === comment.id) closeReply();
+                                  }}
+                                >
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+                                    >
+                                      <Reply className="h-3.5 w-3.5" />
+                                      回复
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-3">
+                                    <Textarea
+                                      autoFocus
+                                      placeholder={`回复 ${authorName}...`}
+                                      value={replyContent}
+                                      onChange={(e) => setReplyContent(e.target.value)}
+                                      className="mb-2 min-h-24 resize-none bg-background"
+                                    />
+                                    <div className="flex items-center justify-end gap-2">
+                                      <Button variant="ghost" size="sm" onClick={closeReply}>
+                                        取消
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleCreateComment(replyContent, comment.id)}
+                                        disabled={createComment.isPending || !replyContent.trim()}
+                                      >
+                                        {createComment.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                                        {isAdmin ? "回复" : "提交审核"}
+                                      </Button>
+                                    </div>
+                                    {commentError && replyTarget?.id === comment.id ? (
+                                      <p className="mt-2 text-sm text-destructive">{commentError}</p>
+                                    ) : null}
+                                  </PopoverContent>
+                                </Popover>
+                              ) : null}
+                              {isAdmin ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
+                                  onClick={() => handleDeleteComment(comment.id, comment.replies.length > 0)}
+                                  disabled={deleteComment.isPending}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  删除
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {visibleReplies.length > 0 ? (
+                            <div className="mt-3 space-y-2 rounded-lg bg-muted/30 px-3 py-2">
+                              {visibleReplies.map((reply) => {
+                                const replyAuthorName = reply.author?.name || "匿名用户";
+                                const replyToName = reply.replyToUser?.name || null;
+
+                                return (
+                                  <div key={reply.id} className="rounded-md py-1.5">
+                                    <p className="text-sm leading-relaxed text-foreground/85">
+                                      <span className="font-medium text-primary">{replyAuthorName}</span>
+                                      <span>：</span>
+                                      {replyToName ? (
+                                        <>
+                                          <span>回复</span>
+                                          <span className="text-primary">@{replyToName}</span>
+                                          <span>：</span>
+                                        </>
+                                      ) : null}
+                                      <span className="whitespace-pre-wrap">{reply.content}</span>
+                                    </p>
+                                    <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                                      <span className="tabular-nums">{formatShortDateTime(reply.createdAt)}</span>
+                                      <div className="flex items-center gap-2">
+                                        {isAuthenticated ? (
+                                          <Popover
+                                            open={replyTarget?.id === reply.id}
+                                            onOpenChange={(open) => {
+                                              if (open) openReply({ id: reply.id, name: replyAuthorName });
+                                              else if (replyTarget?.id === reply.id) closeReply();
+                                            }}
+                                          >
+                                            <PopoverTrigger asChild>
+                                              <button
+                                                type="button"
+                                                className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+                                              >
+                                                <Reply className="h-3.5 w-3.5" />
+                                                回复
+                                              </button>
+                                            </PopoverTrigger>
+                                            <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-3">
+                                              <Textarea
+                                                autoFocus
+                                                placeholder={`回复 ${replyAuthorName}...`}
+                                                value={replyContent}
+                                                onChange={(e) => setReplyContent(e.target.value)}
+                                                className="mb-2 min-h-24 resize-none bg-background"
+                                              />
+                                              <div className="flex items-center justify-end gap-2">
+                                                <Button variant="ghost" size="sm" onClick={closeReply}>
+                                                  取消
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  onClick={() => handleCreateComment(replyContent, reply.id)}
+                                                  disabled={createComment.isPending || !replyContent.trim()}
+                                                >
+                                                  {createComment.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                                                  {isAdmin ? "回复" : "提交审核"}
+                                                </Button>
+                                              </div>
+                                              {commentError && replyTarget?.id === reply.id ? (
+                                                <p className="mt-2 text-sm text-destructive">{commentError}</p>
+                                              ) : null}
+                                            </PopoverContent>
+                                          </Popover>
+                                        ) : null}
+                                        {isAdmin ? (
+                                          <button
+                                            type="button"
+                                            className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
+                                            onClick={() => handleDeleteComment(reply.id, false)}
+                                            disabled={deleteComment.isPending}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                            删除
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {hiddenReplyCount > 0 ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm text-primary transition-colors hover:bg-primary/8"
+                                  onClick={() => expandReplies(comment.id, comment.replies.length)}
+                                >
+                                  展开 {Math.min(REPLY_PAGE_SIZE, hiddenReplyCount)} 条回复
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </button>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </div>
-
-                    {replyTarget?.id === comment.id && (
-                      <div className="mt-3 ml-12 rounded-lg border border-border/50 bg-background/70 p-3">
-                        <Textarea
-                          placeholder={`回复 ${replyTarget.name}...`}
-                          value={replyContent}
-                          onChange={(e) => setReplyContent(e.target.value)}
-                          className="mb-2 min-h-20 resize-none bg-background"
-                        />
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setReplyTarget(null)}>
-                            取消
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => handleCreateComment(replyContent, replyTarget.id)}
-                            disabled={createComment.isPending || !replyContent.trim()}
-                          >
-                            {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                            {isAdmin ? "回复" : "提交审核"}
-                          </Button>
-                        </div>
-                        {commentMessage && <p className="mt-2 text-sm text-emerald-600">{commentMessage}</p>}
-                        {commentError && <p className="mt-2 text-sm text-destructive">{commentError}</p>}
-                      </div>
-                    )}
-
-                    {comment.replies.length > 0 && (
-                      <div className="mt-3 ml-12 space-y-2 rounded-lg bg-background/60 p-3">
-                        {comment.replies.map((reply) => (
-                          <div key={reply.id} className="flex gap-2 rounded-md p-2 hover:bg-muted/40">
-                            <Avatar className="h-7 w-7 flex-shrink-0 border border-border/50">
-                              <AvatarImage src={reply.author?.avatar || undefined} />
-                              <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
-                                {(reply.author?.name || "用户").slice(0, 1)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-medium text-foreground">
-                                  {reply.author?.name || "匿名用户"}
-                                </span>
-                                <span className="text-xs text-muted-foreground tabular-nums">
-                                  {new Date(reply.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
-                                {reply.replyToUser && (
-                                  <span className="mr-1 text-primary">@{reply.replyToUser.name || "匿名用户"}</span>
-                                )}
-                                {reply.content}
-                              </p>
-                              <div className="mt-1 flex items-center gap-3 text-xs">
-                                {isAuthenticated && (
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
-                                    onClick={() => {
-                                      setReplyTarget({ id: reply.id, name: reply.author?.name || "匿名用户" });
-                                      setReplyContent("");
-                                      setCommentError("");
-                                      setCommentMessage("");
-                                    }}
-                                  >
-                                    <Reply className="h-3.5 w-3.5" />
-                                    回复
-                                  </button>
-                                )}
-                                {isAdmin && (
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-destructive"
-                                    onClick={() => handleDeleteComment(reply.id, false)}
-                                    disabled={deleteComment.isPending}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    删除
-                                  </button>
-                                )}
-                              </div>
-                              {replyTarget?.id === reply.id && (
-                                <div className="mt-2 rounded-lg border border-border/50 bg-background p-3">
-                                  <Textarea
-                                    placeholder={`回复 @${replyTarget.name}...`}
-                                    value={replyContent}
-                                    onChange={(e) => setReplyContent(e.target.value)}
-                                    className="mb-2 min-h-20 resize-none bg-background"
-                                  />
-                                  <div className="flex items-center justify-end gap-2">
-                                    <Button variant="ghost" size="sm" onClick={() => setReplyTarget(null)}>
-                                      取消
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleCreateComment(replyContent, replyTarget.id)}
-                                      disabled={createComment.isPending || !replyContent.trim()}
-                                    >
-                                      {createComment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                                      {isAdmin ? "回复" : "提交审核"}
-                                    </Button>
-                                  </div>
-                                  {commentMessage && <p className="mt-2 text-sm text-emerald-600">{commentMessage}</p>}
-                                  {commentError && <p className="mt-2 text-sm text-destructive">{commentError}</p>}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-10 text-muted-foreground">

@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { AliyunCaptchaButton } from "@/components/AliyunCaptchaButton";
-import { USERNAME_HINT, USERNAME_MAX_UNITS } from "@contracts/username";
+import { USERNAME_HINT, USERNAME_MAX_UNITS, USERNAME_PLACEHOLDER } from "@contracts/username";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export default function AccountInfo() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [avatar, setAvatar] = useState("");
-  const [email, setEmail] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
   const [phone, setPhone] = useState("");
   const [smsCode, setSmsCode] = useState("");
@@ -42,7 +42,6 @@ export default function AccountInfo() {
     if (!user) return;
     setName(user.name || "");
     setAvatar(user.avatar || "");
-    setEmail(user.email || "");
   }, [user]);
 
   const updateProfile = trpc.auth.updateProfile.useMutation({
@@ -73,6 +72,7 @@ export default function AccountInfo() {
   const bindEmail = trpc.auth.bindEmail.useMutation({
     onSuccess: async () => {
       await refresh();
+      setNewEmail("");
       setEmailCode("");
       setMessage("邮箱已绑定。");
       setError("");
@@ -148,7 +148,7 @@ export default function AccountInfo() {
 
   const handleBindEmail = (e: FormEvent) => {
     e.preventDefault();
-    bindEmail.mutate({ email: email.trim(), code: emailCode });
+    bindEmail.mutate({ email: newEmail.trim(), code: emailCode });
   };
 
   const handleSendPhoneCode = async (captchaVerifyParam: string) => {
@@ -165,11 +165,11 @@ export default function AccountInfo() {
   const handleSendEmailCode = async (captchaVerifyParam: string) => {
     setError("");
     setMessage("");
-    if (!email.trim()) {
+    if (!newEmail.trim()) {
       setError("请先输入邮箱。");
       return false;
     }
-    await sendBindEmailCode.mutateAsync({ email: email.trim(), captchaVerifyParam });
+    await sendBindEmailCode.mutateAsync({ email: newEmail.trim(), captchaVerifyParam });
     return true;
   };
 
@@ -285,7 +285,7 @@ export default function AccountInfo() {
                   id="account-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder={USERNAME_HINT}
+                  placeholder={USERNAME_PLACEHOLDER}
                   className="mt-1.5"
                   maxLength={USERNAME_MAX_UNITS}
                   disabled={nameLocked}
@@ -317,10 +317,21 @@ export default function AccountInfo() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <p className="mb-4 text-sm text-muted-foreground">
+              当前邮箱：{user.email || "未绑定"}
+            </p>
             <form onSubmit={handleBindEmail} className="space-y-4">
               <div>
-                <Label htmlFor="bind-email">邮箱</Label>
-                <Input id="bind-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1.5" placeholder="name@example.com" required />
+                <Label htmlFor="bind-email">新邮箱</Label>
+                <Input
+                  id="bind-email"
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="mt-1.5"
+                  placeholder="name@example.com"
+                  required
+                />
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
                 <div>
@@ -337,13 +348,13 @@ export default function AccountInfo() {
                 </div>
                 <AliyunCaptchaButton
                   config={captchaConfig.data}
-                  disabled={sendBindEmailCode.isPending || !email.trim()}
+                  disabled={sendBindEmailCode.isPending || !newEmail.trim()}
                   onVerify={handleSendEmailCode}
                 >
                   {sendBindEmailCode.isPending ? "发送中..." : "发送邮箱码"}
                 </AliyunCaptchaButton>
               </div>
-              <Button type="submit" disabled={bindEmail.isPending || !email.trim() || emailCode.length !== 6}>
+              <Button type="submit" disabled={bindEmail.isPending || !newEmail.trim() || emailCode.length !== 6}>
                 {bindEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
                 绑定或换绑邮箱
               </Button>

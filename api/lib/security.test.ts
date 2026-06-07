@@ -66,17 +66,19 @@ describe("password policy", () => {
 });
 
 describe("username policy", () => {
-  it("allows up to 12 English characters or 8 Chinese characters", () => {
-    expect(validateUsername("Sky_User-12")).toBeNull();
-    expect(validateUsername("云霞星河风雨雷电")).toBeNull();
-    expect(validateUsername("abcdefghijkl")).toBeNull();
-    expect(validateUsername("abcdefghijklm")).toBe(USERNAME_LENGTH_ERROR);
-    expect(validateUsername("云霞星河风雨雷电光")).toBe(USERNAME_LENGTH_ERROR);
+  it("requires 4-20 weighted characters and counts Chinese as two characters", () => {
+    expect(validateUsername("abc")).toBe(USERNAME_LENGTH_ERROR);
+    expect(validateUsername("abcd")).toBeNull();
+    expect(validateUsername("abcdefghijklmnopqrst")).toBeNull();
+    expect(validateUsername("abcdefghijklmnopqrstu")).toBe(USERNAME_LENGTH_ERROR);
+    expect(validateUsername("云霞星河风雨雷电山川")).toBeNull();
+    expect(validateUsername("云霞星河风雨雷电山川湖")).toBe(USERNAME_LENGTH_ERROR);
   });
 
-  it("only allows letters, numbers, Chinese characters, dot, dash, and underscore", () => {
+  it("only allows letters, numbers, Chinese characters, dash, and underscore", () => {
     expect(validateUsername("观云者_01")).toBeNull();
-    expect(validateUsername("sky.user-01")).toBeNull();
+    expect(validateUsername("sky-user_01")).toBeNull();
+    expect(validateUsername("sky.user")).toBe(USERNAME_CHAR_ERROR);
     expect(validateUsername("sky user")).toBe(USERNAME_CHAR_ERROR);
     expect(validateUsername("sky@user")).toBe(USERNAME_CHAR_ERROR);
   });

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import { formatShortDate } from "@/lib/date-format";
 import { CATEGORY_LABEL_MAP } from "@contracts/constants";
 import { Eye, MapPin, Calendar, Heart, Loader2 } from "lucide-react";
 import ImageGallery from "./ImageGallery";
@@ -121,12 +122,7 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
               <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 tabular-nums">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3 flex-shrink-0" />
-                  <span className="hidden sm:inline">
-                    {new Date(post.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
-                  </span>
-                  <span className="sm:hidden">
-                    {new Date(post.createdAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric" })}
-                  </span>
+                  {formatShortDate(post.createdAt)}
                 </span>
                 <span className="flex items-center gap-1">
                   <Eye className="h-3 w-3 flex-shrink-0" />

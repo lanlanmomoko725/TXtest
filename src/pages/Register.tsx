@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { AliyunCaptchaButton } from "@/components/AliyunCaptchaButton";
-import { USERNAME_HINT, USERNAME_MAX_UNITS } from "@contracts/username";
+import { USERNAME_HINT, USERNAME_MAX_UNITS, USERNAME_PLACEHOLDER } from "@contracts/username";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,7 +152,7 @@ export default function Register() {
                 autoComplete="username"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={USERNAME_HINT}
+                placeholder={USERNAME_PLACEHOLDER}
                 className="mt-1.5 bg-background"
                 maxLength={USERNAME_MAX_UNITS}
                 required

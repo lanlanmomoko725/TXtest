@@ -14,7 +14,7 @@ import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
 import { getSessionCookieOptions } from "./lib/cookies";
 import { Session } from "@contracts/constants";
-import { USERNAME_MAX_UNITS, assertValidUsername } from "@contracts/username";
+import { USERNAME_LENGTH_ERROR, USERNAME_MAX_UNITS, assertValidUsername } from "@contracts/username";
 import { toCurrentUser } from "./lib/user-dto";
 import { sendVerificationEmail } from "./lib/mail";
 import { assertPasswordPolicy } from "./lib/password-policy";
@@ -283,7 +283,7 @@ export const emailAuthRouter = createRouter({
         smsCode: z.string().min(4, "请输入短信验证码").max(8, "验证码过长"),
         email: z.string().email("请输入有效邮箱地址").optional().or(z.literal("")),
         emailCode: z.string().optional(),
-        name: z.string().min(1, "请输入用户名").max(USERNAME_MAX_UNITS, "用户名过长"),
+        name: z.string().min(1, "请输入用户名").max(USERNAME_MAX_UNITS, USERNAME_LENGTH_ERROR),
         password: z.string().min(8),
         passwordConfirm: z.string().min(8),
       }),
