@@ -256,7 +256,9 @@ export default app;
 if (env.isProduction) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
+  const { startExpiredSessionCleanup } = await import("./lib/sessions");
   serveStaticFiles(app);
+  startExpiredSessionCleanup();
 
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port }, () => {

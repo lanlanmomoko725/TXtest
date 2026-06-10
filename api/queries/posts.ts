@@ -305,6 +305,17 @@ export async function incrementViewCount(id: number) {
     .where(eq(schema.posts.id, id));
 }
 
+function isDuplicateEntryError(error: unknown) {
+  let current: unknown = error;
+  for (let i = 0; i < 3; i++) {
+    if (!current || typeof current !== "object") return false;
+    const value = current as { code?: unknown; errno?: unknown; cause?: unknown };
+    if (value.code === "ER_DUP_ENTRY" || value.errno === 1062) return true;
+    current = value.cause;
+  }
+  return false;
+}
+
 export async function togglePostLike(postId: number, userId: number) {
   const post = await getDb().query.posts.findFirst({
     where: eq(schema.posts.id, postId),
@@ -320,15 +331,20 @@ export async function togglePostLike(postId: number, userId: number) {
     .limit(1);
 
   if (existing) {
-    await getDb().delete(schema.postLikes).where(eq(schema.postLikes.id, existing.id));
-    return { liked: false };
+    return { liked: true };
   }
 
-  await getDb().insert(schema.postLikes).values({
-    postId,
-    userId,
-    createdAt: new Date(),
-  });
+  try {
+    await getDb().insert(schema.postLikes).values({
+      postId,
+      userId,
+      createdAt: new Date(),
+    });
+  } catch (error) {
+    if (!isDuplicateEntryError(error)) {
+      throw error;
+    }
+  }
   return { liked: true };
 }
 

@@ -1,17 +1,58 @@
 import { createHash, randomUUID } from "crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, lte } from "drizzle-orm";
 import { getDb } from "../queries/connection";
 import * as schema from "@db/schema";
 import { Session } from "@contracts/constants";
 import { requestIp, requestUserAgent } from "./request-info";
 import { signAccessToken, signRefreshToken } from "./session";
 
+const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let expiredSessionCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
 function hashJti(jti: string) {
   return createHash("sha256").update(jti).digest("hex");
 }
 
+function getAffectedRows(result: unknown) {
+  const item = Array.isArray(result) ? result[0] : result;
+  if (item && typeof item === "object" && "affectedRows" in item) {
+    const value = Number((item as { affectedRows: unknown }).affectedRows);
+    return Number.isFinite(value) ? value : undefined;
+  }
+  return undefined;
+}
+
 export function newRefreshJti() {
   return randomUUID();
+}
+
+export async function cleanupExpiredSessions(now = new Date()) {
+  const result = await getDb()
+    .delete(schema.sessions)
+    .where(lte(schema.sessions.expiresAt, now));
+  return getAffectedRows(result);
+}
+
+export function startExpiredSessionCleanup(intervalMs = SESSION_CLEANUP_INTERVAL_MS) {
+  if (expiredSessionCleanupTimer) return expiredSessionCleanupTimer;
+
+  const runCleanup = async () => {
+    try {
+      const affectedRows = await cleanupExpiredSessions();
+      if (affectedRows === undefined) {
+        console.log("[sessions] Expired session cleanup completed.");
+      } else {
+        console.log(`[sessions] Cleaned up ${affectedRows} expired session(s).`);
+      }
+    } catch (error) {
+      console.error("[sessions] Failed to clean up expired sessions.", error);
+    }
+  };
+
+  void runCleanup();
+  expiredSessionCleanupTimer = setInterval(runCleanup, intervalMs);
+  expiredSessionCleanupTimer.unref();
+  return expiredSessionCleanupTimer;
 }
 
 export async function createRefreshSession(params: {

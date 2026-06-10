@@ -53,6 +53,7 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
   const handleLikeClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    if (post.likedByMe || toggleLike.isPending) return;
     toggleLike.mutate({ postId: post.id });
   };
 
@@ -131,13 +132,14 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
                 {showLikeButton ? (
                   <button
                     type="button"
-                    aria-label={post.likedByMe ? "取消点赞" : "点赞"}
+                    aria-label={post.likedByMe ? "已点赞" : "点赞"}
                     aria-pressed={Boolean(post.likedByMe)}
+                    aria-disabled={post.likedByMe || toggleLike.isPending}
                     onClick={handleLikeClick}
                     disabled={toggleLike.isPending}
                     className={`inline-flex h-7 min-w-[4.75rem] items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium transition-colors ${
                       post.likedByMe
-                        ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                        ? "cursor-default border-red-200 bg-red-50 text-red-600"
                         : "border-border bg-background text-muted-foreground hover:border-red-200 hover:text-red-600"
                     }`}
                   >

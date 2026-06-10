@@ -156,7 +156,7 @@ export default function PostDetail() {
   };
 
   const handleToggleLike = () => {
-    if (!post || post.skyGalleryCategory) return;
+    if (!post || post.skyGalleryCategory || post.likedByMe || toggleLike.isPending) return;
     toggleLike.mutate({ postId });
   };
 
@@ -275,35 +275,6 @@ export default function PostDetail() {
               )}
 
               <div className="flex items-center gap-2">
-                {isAuthenticated && !isSkyGallery && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleToggleLike}
-                        disabled={toggleLike.isPending}
-                        aria-label={post.likedByMe ? "取消点赞" : "点赞"}
-                        aria-pressed={Boolean(post.likedByMe)}
-                        className={`h-9 rounded-lg px-3 gap-1.5 ${
-                          post.likedByMe
-                            ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-                            : "border-border text-muted-foreground hover:border-red-200 hover:text-red-600"
-                        }`}
-                      >
-                        {toggleLike.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Heart className={`h-4 w-4 ${post.likedByMe ? "fill-current" : ""}`} />
-                        )}
-                        <span className="tabular-nums">{weeklyLikeCount}</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{post.likedByMe ? "取消点赞" : "点赞"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
                 {isAdmin && !isSkyGallery && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -371,10 +342,41 @@ export default function PostDetail() {
           <Separator className="my-8 bg-gradient-to-r from-transparent via-border to-transparent" />
 
           <section className="mb-8">
-            <h3 className="text-lg font-bold text-foreground mb-5 flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              评论 ({commentTotal})
-            </h3>
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h3 className="text-lg font-bold text-foreground">
+                评论（{commentTotal}）
+              </h3>
+              {isAuthenticated && !isSkyGallery && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleToggleLike}
+                      disabled={toggleLike.isPending}
+                      aria-label={post.likedByMe ? "已点赞" : "点赞"}
+                      aria-pressed={Boolean(post.likedByMe)}
+                      aria-disabled={post.likedByMe || toggleLike.isPending}
+                      className={`h-9 rounded-lg px-3 gap-1.5 ${
+                        post.likedByMe
+                          ? "cursor-default border-red-200 bg-red-50 text-red-600"
+                          : "border-border text-muted-foreground hover:border-red-200 hover:text-red-600"
+                      }`}
+                    >
+                      {toggleLike.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Heart className={`h-4 w-4 ${post.likedByMe ? "fill-current" : ""}`} />
+                      )}
+                      <span className="tabular-nums">{weeklyLikeCount}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{post.likedByMe ? "已点赞" : "点赞"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
 
             {isAuthenticated ? (
               <div className="mb-8 p-4 sm:p-5 rounded-xl bg-muted/40 border border-border/50">
