@@ -112,24 +112,22 @@ export default function Lightbox({
     };
   }, [isOpen, isExiting, handleClose, handlePrev, handleNext, handleZoomIn, handleZoomOut, resetView]);
 
-  // Wheel zoom with Ctrl/Cmd
+  // Wheel zoom
   useEffect(() => {
     if (!isOpen || isExiting) return;
     const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        if (e.deltaY < 0) {
-          setScale((s) => Math.min(s + 0.2, 4));
-        } else {
-          setScale((s) => {
-            const next = Math.max(s - 0.2, 0.5);
-            if (next <= 1) {
-              setPanX(0);
-              setPanY(0);
-            }
-            return next;
-          });
-        }
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        setScale((s) => Math.min(s + 0.2, 4));
+      } else {
+        setScale((s) => {
+          const next = Math.max(s - 0.2, 0.5);
+          if (next <= 1) {
+            setPanX(0);
+            setPanY(0);
+          }
+          return next;
+        });
       }
     };
     document.addEventListener("wheel", handleWheel, { passive: false });
@@ -147,6 +145,9 @@ export default function Lightbox({
     lastY: number;
     startTime: number;
     isPanning: boolean;
+    isPinching: boolean;
+    initialPinchDistance: number;
+    initialScale: number;
     touchedImage: boolean;
   }>({
     active: false,
@@ -156,8 +157,18 @@ export default function Lightbox({
     lastY: 0,
     startTime: 0,
     isPanning: false,
+    isPinching: false,
+    initialPinchDistance: 0,
+    initialScale: 1,
     touchedImage: false,
   });
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const first = touches[0];
+    const second = touches[1];
+    return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+  };
 
   const onTouchStartRoot = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0];
@@ -172,12 +183,29 @@ export default function Lightbox({
       lastY: t.clientY,
       startTime: Date.now(),
       isPanning: false,
+      isPinching: e.touches.length >= 2,
+      initialPinchDistance: getTouchDistance(e.touches),
+      initialScale: scale,
       touchedImage: isImage,
     };
-  }, []);
+  }, [scale]);
 
   const onTouchMoveRoot = useCallback((e: React.TouchEvent) => {
     if (!touchState.current.active) return;
+    if (touchState.current.isPinching && e.touches.length >= 2) {
+      e.preventDefault();
+      const distance = getTouchDistance(e.touches);
+      if (touchState.current.initialPinchDistance > 0) {
+        const next = Math.max(0.5, Math.min(4, touchState.current.initialScale * (distance / touchState.current.initialPinchDistance)));
+        setScale(next);
+        if (next <= 1) {
+          setPanX(0);
+          setPanY(0);
+        }
+      }
+      return;
+    }
+
     const t = e.touches[0];
     const state = touchState.current;
     const dx = t.clientX - state.lastX;
@@ -204,6 +232,10 @@ export default function Lightbox({
     const state = touchState.current;
     if (!state.active) return;
     state.active = false;
+    if (state.isPinching) {
+      state.isPinching = false;
+      return;
+    }
 
     const totalDx = state.lastX - state.startX;
     const totalDy = state.lastY - state.startY;
@@ -343,6 +375,10 @@ export default function Lightbox({
         <X className="h-5 w-5" />
       </button>
 
+      <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium tabular-nums text-white backdrop-blur">
+        {currentIndex + 1} / {images.length}
+      </div>
+
       {/* Prev button */}
       {currentIndex > 0 && (
         <button
@@ -387,7 +423,7 @@ export default function Lightbox({
           <img
             src={images[currentIndex]}
             alt={`图片 ${currentIndex + 1}`}
-            className="max-w-[90vw] max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-elevated"
+            className="max-h-[74vh] max-w-[90vw] rounded-lg object-contain shadow-elevated"
             style={{
               transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
               transition: isMouseDragging ? "none" : "transform 0.15s ease-out",
@@ -399,7 +435,7 @@ export default function Lightbox({
 
       {/* Zoom Controls */}
       <div
-        className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
+        className={`absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 ${images.length > 1 ? "bottom-24" : "bottom-8"}`}
         onTouchStart={(e) => e.stopPropagation()}
       >
         <button
@@ -441,13 +477,13 @@ export default function Lightbox({
         </button>
       </div>
 
-      {/* Dots indicator */}
+      {/* Thumbnail navigator */}
       {images.length > 1 && (
         <div
-          className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20"
+          className="absolute bottom-4 left-1/2 z-20 flex max-w-[min(92vw,760px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-2xl bg-black/35 p-2 backdrop-blur scrollbar-thin"
           onTouchStart={(e) => e.stopPropagation()}
         >
-          {images.map((_, idx) => (
+          {images.map((image, idx) => (
             <button
               key={idx}
               onClick={(e) => {
@@ -457,11 +493,12 @@ export default function Lightbox({
                 else if (idx < currentIndex) setSlideDir("left");
                 onNavigate(idx);
               }}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              className={`h-14 w-14 flex-none rounded-xl border bg-cover bg-center transition-all duration-200 focus-visible:ring-2 focus-visible:ring-white/60 ${
                 idx === currentIndex
-                  ? "w-6 bg-white"
-                  : "w-2 bg-white/40 hover:bg-white/60"
+                  ? "border-white ring-2 ring-white/30"
+                  : "border-white/20 opacity-70 hover:border-white/60 hover:opacity-100"
               }`}
+              style={{ backgroundImage: `url(${image})` }}
               aria-label={`切换到第 ${idx + 1} 张`}
             />
           ))}

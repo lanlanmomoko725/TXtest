@@ -8,6 +8,7 @@ const LIST_PAGE_PREFIXES = [
   "/sky-events",
   "/sky-gallery",
   "/sky-explanation",
+  "/activities",
   "/featured",
   "/tag/",
   "/search",
@@ -15,13 +16,16 @@ const LIST_PAGE_PREFIXES = [
 
 function isListPage(path: string): boolean {
   if (path === "/") return true;
+  if (path === "/activities/new" || path.startsWith("/activities/detail/")) return false;
   return LIST_PAGE_PREFIXES.some((p) => p !== "/" && path.startsWith(p));
 }
 
 function isTopPage(path: string): boolean {
   if (path.startsWith("/post/")) return true;
+  if (path.startsWith("/activities/detail/")) return true;
   if (path.startsWith("/profile/")) return true;
   if (path === "/create") return true;
+  if (path === "/activities/new") return true;
   if (path === "/login") return true;
   if (path === "/register") return true;
   if (path === "/weekly-sky") return true;

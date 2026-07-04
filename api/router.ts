@@ -5,6 +5,7 @@ import { commentRouter } from "./comment-router";
 import { weeklySkyRouter } from "./weekly-sky-router";
 import { aboutRouter } from "./about-router";
 import { adminRouter } from "./admin-router";
+import { activityRouter } from "./activity-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -16,6 +17,7 @@ export const appRouter = createRouter({
   comment: commentRouter,
   weeklySky: weeklySkyRouter,
   about: aboutRouter,
+  activity: activityRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import PostCard from "@/components/PostCard";
+import MasonryGrid, { MasonryItem } from "@/components/MasonryGrid";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -162,11 +163,13 @@ export default function SearchPage() {
           </div>
         ) : hasSearched ? (
           data && data.posts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children">
+            <MasonryGrid className="stagger-children">
               {data.posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <MasonryItem key={post.id}>
+                  <PostCard post={post} />
+                </MasonryItem>
               ))}
-            </div>
+            </MasonryGrid>
           ) : (
             <div className="text-center py-16 text-muted-foreground">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">

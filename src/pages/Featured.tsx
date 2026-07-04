@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import PostCard from "@/components/PostCard";
+import MasonryGrid, { MasonryItem } from "@/components/MasonryGrid";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Star, ArrowLeft, StickyNote, FileText, Loader2 } from "lucide-react";
@@ -91,11 +92,13 @@ export default function Featured() {
           </div>
         ) : tab === "posts" ? (
           posts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <MasonryGrid>
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <MasonryItem key={post.id}>
+                  <PostCard post={post} />
+                </MasonryItem>
               ))}
-            </div>
+            </MasonryGrid>
           ) : (
             <div className="text-center py-20">
               <StickyNote className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
@@ -105,11 +108,13 @@ export default function Featured() {
           )
         ) : (
           articles.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <MasonryGrid>
               {articles.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <MasonryItem key={post.id}>
+                  <PostCard post={post} />
+                </MasonryItem>
               ))}
-            </div>
+            </MasonryGrid>
           ) : (
             <div className="text-center py-20">
               <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />

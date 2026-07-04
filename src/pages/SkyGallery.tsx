@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import PostCard from "@/components/PostCard";
+import MasonryGrid from "@/components/MasonryGrid";
 import { SKY_GALLERY_CATEGORIES } from "@contracts/constants";
 import {
   Loader2,
@@ -185,7 +186,7 @@ export default function SkyGalleryPage() {
               <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
             </div>
           ) : posts && posts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <MasonryGrid>
               {posts.map((post, index) => (
                 <div
                   key={post.id}
@@ -195,7 +196,7 @@ export default function SkyGalleryPage() {
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, index)}
-                  className={`relative group transition-all ${
+                  className={`relative group mb-4 break-inside-avoid transition-all ${
                     dragIndex === index ? "opacity-50" : ""
                   } ${
                     dropIndex === index && dragIndex !== index
@@ -212,7 +213,7 @@ export default function SkyGalleryPage() {
                   <PostCard post={post} hideMeta />
                 </div>
               ))}
-            </div>
+            </MasonryGrid>
           ) : (
             <div className="text-center py-20">
               <Library className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />

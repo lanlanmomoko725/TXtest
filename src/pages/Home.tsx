@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import PostCard from "@/components/PostCard";
+import MasonryGrid, { MasonryItem } from "@/components/MasonryGrid";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -181,11 +182,13 @@ export default function Home() {
               ))}
             </div>
           ) : featuredPosts && featuredPosts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children">
+            <MasonryGrid className="stagger-children">
               {featuredPosts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <MasonryItem key={post.id}>
+                  <PostCard post={post} />
+                </MasonryItem>
               ))}
-            </div>
+            </MasonryGrid>
           ) : (
             <div className="text-center py-16 text-muted-foreground">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
@@ -219,11 +222,13 @@ export default function Home() {
               ))}
             </div>
           ) : latestPosts && latestPosts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
+            <MasonryGrid className="stagger-children">
               {latestPosts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <MasonryItem key={post.id}>
+                  <PostCard post={post} />
+                </MasonryItem>
               ))}
-            </div>
+            </MasonryGrid>
           ) : (
             <div className="text-center py-16 text-muted-foreground">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">

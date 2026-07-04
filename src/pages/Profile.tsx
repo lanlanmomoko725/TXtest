@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PostCard from "@/components/PostCard";
+import MasonryGrid, { MasonryItem } from "@/components/MasonryGrid";
 import { Loader2, User, Cloud, MapPin, Star, Settings } from "lucide-react";
 
 export default function Profile() {
@@ -107,11 +108,13 @@ export default function Profile() {
 
           <TabsContent value="all">
             {posts && posts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <MasonryGrid>
                 {posts.map((post) => (
-                  <PostCard key={post.id} post={post} />
+                  <MasonryItem key={post.id}>
+                    <PostCard post={post} />
+                  </MasonryItem>
                 ))}
-              </div>
+              </MasonryGrid>
             ) : (
               <EmptyState label="暂无发布内容" />
             )}
@@ -119,11 +122,13 @@ export default function Profile() {
 
           <TabsContent value="articles">
             {articles.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <MasonryGrid>
                 {articles.map((post) => (
-                  <PostCard key={post.id} post={post} />
+                  <MasonryItem key={post.id}>
+                    <PostCard post={post} />
+                  </MasonryItem>
                 ))}
-              </div>
+              </MasonryGrid>
             ) : (
               <EmptyState label="暂无文章" />
             )}
@@ -131,11 +136,13 @@ export default function Profile() {
 
           <TabsContent value="posts">
             {regularPosts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <MasonryGrid>
                 {regularPosts.map((post) => (
-                  <PostCard key={post.id} post={post} />
+                  <MasonryItem key={post.id}>
+                    <PostCard post={post} />
+                  </MasonryItem>
                 ))}
-              </div>
+              </MasonryGrid>
             ) : (
               <EmptyState label="暂无帖子" />
             )}

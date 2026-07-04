@@ -1,4 +1,6 @@
+import { useMemo, useState } from "react";
 import { escapeAttr, escapeHtml, sanitizeHtml } from "@contracts/html-sanitizer";
+import Lightbox from "./Lightbox";
 
 interface TagContentProps {
   html: string;
@@ -43,8 +45,21 @@ function enhanceText(text: string): string {
   });
 }
 
+function extractImageSources(html: string): string[] {
+  const sources: string[] = [];
+  const regex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html)) !== null) {
+    if (match[1]) sources.push(match[1]);
+  }
+  return [...new Set(sources)];
+}
+
 export default function TagContent({ html, className = "" }: TagContentProps) {
-  const safeHtml = sanitizeHtml(html);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const safeHtml = useMemo(() => sanitizeHtml(html), [html]);
+  const imageSources = useMemo(() => extractImageSources(safeHtml), [safeHtml]);
   const parts: { type: "html" | "text"; value: string }[] = [];
   let lastIndex = 0;
   const htmlTagRegex = /<[^>]+>/g;
@@ -66,20 +81,43 @@ export default function TagContent({ html, className = "" }: TagContentProps) {
     .join("");
 
   return (
-    <div
-      className={className}
-      dangerouslySetInnerHTML={{ __html: processedHtml }}
-      onClick={(e) => {
-        const target = e.target as HTMLElement;
-        const anchor = target.closest("a[data-tag]") as HTMLAnchorElement | null;
-        if (anchor) {
-          e.preventDefault();
-          const tag = anchor.getAttribute("data-tag");
-          if (tag) {
-            window.location.href = `/tag/${encodeURIComponent(tag)}`;
+    <>
+      <div
+        className={className}
+        dangerouslySetInnerHTML={{ __html: processedHtml }}
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          const image = target.closest("img") as HTMLImageElement | null;
+          if (image) {
+            const src = image.getAttribute("src") || image.src;
+            const index = imageSources.indexOf(src);
+            if (index >= 0) {
+              e.preventDefault();
+              setCurrentImageIndex(index);
+              setLightboxOpen(true);
+              return;
+            }
           }
-        }
-      }}
-    />
+
+          const anchor = target.closest("a[data-tag]") as HTMLAnchorElement | null;
+          if (anchor) {
+            e.preventDefault();
+            const tag = anchor.getAttribute("data-tag");
+            if (tag) {
+              window.location.href = `/tag/${encodeURIComponent(tag)}`;
+            }
+          }
+        }}
+      />
+      {imageSources.length > 0 && (
+        <Lightbox
+          images={imageSources}
+          currentIndex={currentImageIndex}
+          isOpen={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+          onNavigate={setCurrentImageIndex}
+        />
+      )}
+    </>
   );
 }

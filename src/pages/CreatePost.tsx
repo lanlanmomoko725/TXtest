@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
@@ -46,6 +46,16 @@ function plainTextToHtml(text: string): string {
     .join("");
 }
 
+function extractImageUrlsFromHtml(html: string): string[] {
+  const urls: string[] = [];
+  const regex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html)) !== null) {
+    if (match[1]) urls.push(match[1]);
+  }
+  return [...new Set(urls)];
+}
+
 export default function CreatePost() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth({
@@ -60,6 +70,7 @@ export default function CreatePost() {
   const [region, setRegion] = useState("");
   const [isArticle, setIsArticle] = useState(false);
   const [includeSkyGallery, setIncludeSkyGallery] = useState(false);
+  const [coverImage, setCoverImage] = useState("");
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const canPublish = !!user && user.level >= 99;
 
@@ -73,6 +84,11 @@ export default function CreatePost() {
   });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const articleImageUrls = useMemo(() => extractImageUrlsFromHtml(content), [content]);
+  const coverCandidates = useMemo(
+    () => [...new Set(isArticle ? articleImageUrls : imageUrls)],
+    [articleImageUrls, imageUrls, isArticle],
+  );
 
   const persistImageUrls = (urls: string[]) => {
     try {
@@ -81,6 +97,16 @@ export default function CreatePost() {
       // ignore
     }
   };
+
+  useEffect(() => {
+    if (coverCandidates.length === 0) {
+      if (coverImage) setCoverImage("");
+      return;
+    }
+    if (!coverImage || !coverCandidates.includes(coverImage)) {
+      setCoverImage(coverCandidates[0]);
+    }
+  }, [coverCandidates, coverImage]);
 
   const utils = trpc.useUtils();
   const createPost = trpc.post.create.useMutation({
@@ -151,6 +177,10 @@ export default function CreatePost() {
       finalTitle = plainText.slice(0, 30) + (plainText.length > 30 ? "…" : "");
     }
 
+    const finalCoverImage = coverCandidates.includes(coverImage)
+      ? coverImage
+      : coverCandidates[0] || "";
+
     createPost.mutate({
       title: finalTitle,
       content: finalContent,
@@ -158,6 +188,7 @@ export default function CreatePost() {
       hasLocation,
       region: hasLocation ? region : undefined,
       images: finalImages.length > 0 ? finalImages : undefined,
+      coverImage: finalCoverImage || undefined,
       isArticle,
       skyGalleryCategory: isAdmin && includeSkyGallery ? category : undefined,
     });
@@ -428,6 +459,56 @@ export default function CreatePost() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {coverCandidates.length > 0 && (
+            <div className="rounded-xl border border-border/60 bg-card/70 p-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <ImagePlus className="h-4 w-4 text-primary" />
+                    封面展示
+                  </Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    外部列表只展示选中的这一张图片，未选择时默认使用第一张。
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {coverCandidates.length} 张可选
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                {coverCandidates.map((url, idx) => {
+                  const selected = coverImage === url;
+                  return (
+                    <button
+                      key={`${url}-${idx}`}
+                      type="button"
+                      onClick={() => setCoverImage(url)}
+                      aria-pressed={selected}
+                      className={`group relative overflow-hidden rounded-xl border bg-muted text-left transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring ${
+                        selected
+                          ? "border-primary shadow-soft ring-2 ring-primary/20"
+                          : "border-border/50 hover:border-primary/40"
+                      }`}
+                    >
+                      <img
+                        src={url}
+                        alt={`封面候选 ${idx + 1}`}
+                        className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        loading="lazy"
+                      />
+                      {selected && (
+                        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground shadow-soft">
+                          <Check className="h-3 w-3" />
+                          封面
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

@@ -117,6 +117,7 @@ export const postRouter = createRouter({
         region: z.string().optional(),
         hasLocation: z.boolean().default(false),
         images: z.array(z.string()).optional(),
+        coverImage: z.string().optional(),
         isArticle: z.boolean().default(false),
         skyGalleryCategory: z.string().optional(),
       })
@@ -143,6 +144,7 @@ export const postRouter = createRouter({
         region: z.string().optional(),
         hasLocation: z.boolean().optional(),
         images: z.array(z.string()).optional(),
+        coverImage: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

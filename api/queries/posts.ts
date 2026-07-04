@@ -44,6 +44,41 @@ function normalizeImages(images: unknown): string[] | null {
   return null;
 }
 
+function normalizeCoverImage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return filterSafeUploadPaths([value])?.[0] ?? null;
+}
+
+function uniqueImages(...groups: Array<string[] | null | undefined>): string[] {
+  return [...new Set(groups.flatMap((group) => group ?? []))];
+}
+
+function getPostImageCandidates(content: string, images: unknown): string[] {
+  return uniqueImages(
+    normalizeImages(images),
+    filterSafeUploadPaths(extractImagesFromHtml(content)),
+  );
+}
+
+function resolveCoverImage(input: unknown, candidates: string[], fallback: unknown = null, strict = true): string | null {
+  const hasInput = typeof input === "string" && input.trim().length > 0;
+  const selected = normalizeCoverImage(input);
+  if (hasInput && !selected && strict) {
+    throw new Error("Cover image must be a valid uploaded image path");
+  }
+  if (selected) {
+    if (!candidates.includes(selected)) {
+      if (!strict) return candidates[0] ?? null;
+      throw new Error("Cover image must be selected from this post's uploaded images");
+    }
+    return selected;
+  }
+
+  const existing = normalizeCoverImage(fallback);
+  if (existing && candidates.includes(existing)) return existing;
+  return candidates[0] ?? null;
+}
+
 function isLikablePost(post: typeof schema.posts.$inferSelect) {
   return !post.skyGalleryCategory;
 }
@@ -93,15 +128,14 @@ async function attachPostMeta<T extends typeof schema.posts.$inferSelect>(
 
   return posts.map((post) => {
     const content = sanitizeHtml(post.content);
-    let images = normalizeImages(post.images);
-    if (!images || images.length === 0) {
-      images = extractImagesFromHtml(content);
-    }
+    const images = getPostImageCandidates(content, post.images);
+    const coverImage = resolveCoverImage(post.coverImage, images, null, false);
     const weeklyLikeCount = weeklyLikeMap.get(post.id) ?? 0;
     return {
       ...post,
       content,
       images: images.length > 0 ? images : null,
+      coverImage,
       author: authorMap.get(post.authorId) || null,
       weeklyLikeCount,
       likeCount: weeklyLikeCount,
@@ -201,17 +235,21 @@ export async function createPost(data: {
   region?: string;
   hasLocation: boolean;
   images?: string[];
+  coverImage?: string;
   isArticle: boolean;
   skyGalleryCategory?: string;
 }) {
   // For non-article posts, merge uploaded images with content images
   // For articles, images are embedded inline in content — don't duplicate in images field
   const content = sanitizeHtml(data.content);
-  const contentImages = data.isArticle ? [] : extractImagesFromHtml(content);
+  const safeContentImages = filterSafeUploadPaths(extractImagesFromHtml(content)) ?? [];
+  const contentImages = data.isArticle ? [] : safeContentImages;
   const safeInputImages = filterSafeUploadPaths(data.images) ?? [];
   const mergedImages = safeInputImages.length > 0
     ? [...safeInputImages, ...contentImages.filter((url) => !safeInputImages.includes(url))]
     : contentImages.length > 0 ? contentImages : null;
+  const coverCandidates = data.isArticle ? safeContentImages : (mergedImages ?? []);
+  const coverImage = resolveCoverImage(data.coverImage, coverCandidates);
 
   // Extract tags from content and auto-detect sky explanation
   const tags = extractTagsFromHtml(content);
@@ -232,6 +270,7 @@ export async function createPost(data: {
     region: data.region || null,
     hasLocation: data.hasLocation,
     images: mergedImages,
+    coverImage,
     isArticle: data.isArticle,
     isSkyExplanation,
     skyGalleryCategory: data.skyGalleryCategory || null,
@@ -252,35 +291,55 @@ export async function updatePost(
     region: string;
     hasLocation: boolean;
     images: string[];
+    coverImage: string;
     isArticle: boolean;
     skyGalleryCategory?: string;
   }>
 ) {
+  const existingPost = await getDb().query.posts.findFirst({
+    where: eq(schema.posts.id, id),
+  });
+  if (!existingPost) throw new Error("Post not found");
+
   const updateData: Partial<InsertPost> = {};
+  let nextContent = sanitizeHtml(existingPost.content);
+  let nextImages: string[] | null = normalizeImages(existingPost.images);
+  const nextIsArticle = data.isArticle ?? existingPost.isArticle;
   if (data.title !== undefined) updateData.title = data.title;
   if (data.content !== undefined) {
     const content = sanitizeHtml(data.content);
+    nextContent = content;
     updateData.content = content;
     // For articles, images are inline — don't extract to avoid duplication
-    const contentImages = data.isArticle ? [] : extractImagesFromHtml(content);
+    const safeContentImages = filterSafeUploadPaths(extractImagesFromHtml(content)) ?? [];
+    const contentImages = nextIsArticle ? [] : safeContentImages;
     const existingImages = filterSafeUploadPaths(data.images) ?? [];
     const mergedImages = existingImages.length > 0
       ? [...existingImages, ...contentImages.filter((url) => !existingImages.includes(url))]
       : contentImages.length > 0 ? contentImages : null;
     updateData.images = mergedImages;
+    nextImages = mergedImages;
 
     // Re-extract tags and auto-detect sky explanation
     const tags = extractTagsFromHtml(content);
     updateData.tags = tags.length > 0 ? tags : null;
     updateData.isSkyExplanation = tags.includes("天象解说图");
   } else if (data.images !== undefined) {
-    updateData.images = filterSafeUploadPaths(data.images);
+    nextImages = filterSafeUploadPaths(data.images);
+    updateData.images = nextImages;
   }
   if (data.category !== undefined) updateData.category = data.category as InsertPost["category"];
   if (data.region !== undefined) updateData.region = data.region;
   if (data.hasLocation !== undefined) updateData.hasLocation = data.hasLocation;
   if (data.isArticle !== undefined) updateData.isArticle = data.isArticle;
   if (data.skyGalleryCategory !== undefined) updateData.skyGalleryCategory = data.skyGalleryCategory || null;
+  if (data.coverImage !== undefined || data.content !== undefined || data.images !== undefined || data.isArticle !== undefined) {
+    updateData.coverImage = resolveCoverImage(
+      data.coverImage,
+      getPostImageCandidates(nextContent, nextImages),
+      existingPost.coverImage,
+    );
+  }
 
   await getDb().update(schema.posts).set(updateData).where(eq(schema.posts.id, id));
   return findPostById(id);

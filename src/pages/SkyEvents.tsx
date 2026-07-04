@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import PostCard from "@/components/PostCard";
+import MasonryGrid, { MasonryItem } from "@/components/MasonryGrid";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SKY_CATEGORIES, REGIONS } from "@contracts/constants";
 import {
@@ -178,11 +179,13 @@ export default function SkyEventsPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : posts && posts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <MasonryGrid>
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <MasonryItem key={post.id}>
+                  <PostCard post={post} />
+                </MasonryItem>
               ))}
-            </div>
+            </MasonryGrid>
           ) : (
             <div className="text-center py-20">
               <Clock className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />

@@ -9,6 +9,7 @@ import {
   boolean,
   int,
   json,
+  index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
@@ -161,6 +162,7 @@ export const posts = mysqlTable("posts", {
   region: varchar("region", { length: 50 }),
   hasLocation: boolean("hasLocation").default(false).notNull(),
   images: json("images").$type<string[] | null>(),
+  coverImage: text("coverImage"),
   isArticle: boolean("isArticle").default(false).notNull(),
   isSkyExplanation: boolean("isSkyExplanation").default(false).notNull(),
   skyGalleryCategory: varchar("skyGalleryCategory", { length: 50 }),
@@ -177,6 +179,26 @@ export const posts = mysqlTable("posts", {
 
 export type Post = typeof posts.$inferSelect;
 export type InsertPost = typeof posts.$inferInsert;
+
+export const activities = mysqlTable("activities", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  coverImage: text("coverImage"),
+  activityYear: int("activityYear").notNull(),
+  activityMonth: int("activityMonth").notNull(),
+  createdBy: bigint("createdBy", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt")
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
+}, (table) => ({
+  archiveIdx: index("activities_archive_idx").on(table.activityYear, table.activityMonth, table.createdAt),
+}));
+
+export type Activity = typeof activities.$inferSelect;
+export type InsertActivity = typeof activities.$inferInsert;
 
 export const postLikes = mysqlTable("post_likes", {
   id: serial("id").primaryKey(),

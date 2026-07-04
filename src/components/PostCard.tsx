@@ -6,10 +6,8 @@ import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { formatShortDate } from "@/lib/date-format";
 import { CATEGORY_LABEL_MAP } from "@contracts/constants";
-import { Eye, MapPin, Calendar, Heart, Loader2 } from "lucide-react";
-import ImageGallery from "./ImageGallery";
-import type { Post } from "@db/schema";
-import type { User } from "@db/schema";
+import { Calendar, Eye, Heart, Loader2, MapPin } from "lucide-react";
+import type { Post, User } from "@db/schema";
 
 function extractPlainText(html: string): string {
   return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
@@ -32,6 +30,7 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
   const { isAuthenticated } = useAuth();
   const categoryLabel = CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images.filter(Boolean) : [];
+  const coverImage = post.coverImage || images[0] || "";
   const plainContent = extractPlainText(post.content);
   const displayTitle = post.title && post.title !== plainContent.slice(0, 30) + (plainContent.length > 30 ? "..." : "")
     ? post.title
@@ -58,69 +57,69 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
   };
 
   return (
-    <Link to={`/post/${post.id}`} className="group block focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-      <article className="bg-card border border-border/60 rounded-xl overflow-hidden shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-300 ease-out-quart">
-        {images.length > 0 ? (
-          images.length === 1 ? (
-            <div className="aspect-[16/10] overflow-hidden bg-muted">
-              <img
-                src={images[0]}
-                alt={post.title || "文章配图"}
-                loading="lazy"
-                width={640}
-                height={400}
-                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out-quart"
-              />
-            </div>
-          ) : (
-            <div className="bg-muted">
-              <ImageGallery images={images} alt={post.title} clickable={false} maxImages={9} />
-            </div>
-          )
+    <Link
+      to={`/post/${post.id}`}
+      className="group block focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <article className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-card transition-all duration-300 ease-out-quart hover:-translate-y-0.5 hover:shadow-card-hover">
+        {coverImage ? (
+          <div className="overflow-hidden bg-muted">
+            <img
+              src={coverImage}
+              alt={post.title || "内容封面"}
+              loading="lazy"
+              width={640}
+              className="h-auto w-full object-cover transition-transform duration-500 ease-out-quart group-hover:scale-[1.015]"
+            />
+          </div>
         ) : (
-          <div className="aspect-[16/10] bg-gradient-to-br from-primary/10 via-primary/5 to-background flex items-center justify-center">
-            <span className="text-4xl font-bold text-primary/20">{categoryLabel}</span>
+          <div className="flex aspect-[4/3] items-center justify-center bg-gradient-to-br from-primary/10 via-primary/5 to-background">
+            <span className="px-4 text-center text-2xl font-bold text-primary/20">{categoryLabel}</span>
           </div>
         )}
-        <div className="p-4">
+
+        <div className="p-3.5">
           {!hideMeta && (
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <Badge variant="secondary" className="bg-primary/8 text-primary hover:bg-primary/12 transition-colors">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="bg-primary/8 text-primary transition-colors hover:bg-primary/12">
                 {categoryLabel}
               </Badge>
               {post.isArticle && (
-                <Badge variant="outline" className="text-amber-600 border-amber-200/60 hover:bg-amber-50/50 transition-colors">
+                <Badge variant="outline" className="border-amber-200/60 text-amber-600 transition-colors hover:bg-amber-50/50">
                   文章
                 </Badge>
               )}
               {post.isSkyExplanation && (
-                <Badge variant="outline" className="text-purple-600 border-purple-200/60 hover:bg-purple-50/50 transition-colors">
+                <Badge variant="outline" className="border-purple-200/60 text-purple-600 transition-colors hover:bg-purple-50/50">
                   天象解说图
                 </Badge>
               )}
               {post.hasLocation && post.region && (
-                <Badge variant="outline" className="text-emerald-600 border-emerald-200/60 hover:bg-emerald-50/50 transition-colors flex items-center gap-0.5">
+                <Badge variant="outline" className="flex items-center gap-0.5 border-emerald-200/60 text-emerald-600 transition-colors hover:bg-emerald-50/50">
                   <MapPin className="h-3 w-3" />
                   {post.region}
                 </Badge>
               )}
             </div>
           )}
-          <h3 className="font-semibold text-card-foreground line-clamp-1 group-hover:text-primary transition-colors duration-200">
+
+          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-card-foreground transition-colors duration-200 group-hover:text-primary">
             {displayTitle}
           </h3>
+
           {!hideMeta && (
-            <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <div className="flex min-w-0 items-center gap-2">
                 <Avatar className="h-5 w-5 flex-shrink-0 border border-border/50">
                   <AvatarImage src={post.author?.avatar || undefined} />
-                  <AvatarFallback className="bg-muted text-muted-foreground text-[10px]">
+                  <AvatarFallback className="bg-muted text-[10px] text-muted-foreground">
                     {(post.author?.name || "用户").slice(0, 1)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="truncate max-w-[80px]">{post.author?.name || "匿名"}</span>
+                <span className="max-w-[88px] truncate">{post.author?.name || "匿名"}</span>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 tabular-nums">
+
+              <div className="flex flex-shrink-0 items-center gap-2 tabular-nums sm:gap-3">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3 flex-shrink-0" />
                   {formatShortDate(post.createdAt)}
@@ -134,10 +133,9 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
                     type="button"
                     aria-label={post.likedByMe ? "已点赞" : "点赞"}
                     aria-pressed={Boolean(post.likedByMe)}
-                    aria-disabled={post.likedByMe || toggleLike.isPending}
                     onClick={handleLikeClick}
-                    disabled={toggleLike.isPending}
-                    className={`inline-flex h-7 min-w-[4.75rem] items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium transition-colors ${
+                    disabled={post.likedByMe || toggleLike.isPending}
+                    className={`inline-flex h-8 min-w-[4.5rem] items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium transition-colors ${
                       post.likedByMe
                         ? "cursor-default border-red-200 bg-red-50 text-red-600"
                         : "border-border bg-background text-muted-foreground hover:border-red-200 hover:text-red-600"

@@ -11,6 +11,8 @@ import AccountInfo from "./pages/AccountInfo"
 import Featured from "./pages/Featured"
 import WeeklySky from "./pages/WeeklySky"
 import Activities from "./pages/Activities"
+import CreateActivity from "./pages/CreateActivity"
+import ActivityDetail from "./pages/ActivityDetail"
 import SkyExplanation from "./pages/SkyExplanation"
 import SkyEvents from "./pages/SkyEvents"
 import SkyGallery from "./pages/SkyGallery"
@@ -54,6 +56,9 @@ export default function App() {
         <Route path="/weekly-sky" element={<WeeklySky />} />
         <Route path="/sky-events" element={<SkyEvents />} />
         <Route path="/activities" element={<Activities />} />
+        <Route path="/activities/new" element={<CreateActivity />} />
+        <Route path="/activities/detail/:id" element={<ActivityDetail />} />
+        <Route path="/activities/:year/:month" element={<Activities />} />
         <Route path="/sky-gallery" element={<SkyGallery />} />
         <Route path="/sky-explanation" element={<SkyExplanation />} />
         <Route path="/about" element={<AboutUs />} />

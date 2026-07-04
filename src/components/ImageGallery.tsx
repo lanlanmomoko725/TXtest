@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Lightbox from "./Lightbox";
 
 interface ImageGalleryProps {
@@ -9,98 +9,93 @@ interface ImageGalleryProps {
 }
 
 export default function ImageGallery({ images, alt = "图片", clickable = true, maxImages }: ImageGalleryProps) {
+  const validImages = useMemo(() => images.filter(Boolean), [images]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const validImages = images.filter(Boolean);
+  useEffect(() => {
+    if (currentIndex >= validImages.length) {
+      setCurrentIndex(Math.max(validImages.length - 1, 0));
+    }
+  }, [currentIndex, validImages.length]);
+
   if (validImages.length === 0) return null;
 
-  // Single image
-  if (validImages.length === 1) {
-    return (
-      <div className="overflow-hidden rounded-lg">
-        <img
-          src={validImages[0]}
-          alt={alt}
-          loading="lazy"
-          width={800}
-          height={600}
-          className={`w-full max-h-[50vh] sm:max-h-[70vh] object-contain transition-transform duration-300 ${clickable ? "cursor-pointer hover:scale-[1.01]" : ""}`}
-          onClick={clickable ? (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            setCurrentIndex(0);
-            setLightboxOpen(true);
-          } : undefined}
-        />
-        <Lightbox
-          images={validImages}
-          currentIndex={currentIndex}
-          isOpen={lightboxOpen}
-          onClose={() => setLightboxOpen(false)}
-          onNavigate={setCurrentIndex}
-        />
-      </div>
-    );
-  }
+  const previewImages = typeof maxImages === "number" ? validImages.slice(0, maxImages) : validImages;
+  const remaining = validImages.length - previewImages.length;
+  const currentImage = validImages[currentIndex] ?? validImages[0];
 
-  // Multi-image: card preview caps at maxImages with "+N"; detail shows all
-  const capped = typeof maxImages === "number" && validImages.length > maxImages;
-  const displayImages = capped ? validImages.slice(0, maxImages) : validImages;
-  const remaining = capped ? validImages.length - maxImages! : 0;
+  const openLightbox = (index: number) => {
+    if (!clickable) return;
+    setCurrentIndex(index);
+    setLightboxOpen(true);
+  };
 
   return (
-    <>
-      <div className="grid grid-cols-3 gap-1.5">
-        {displayImages.map((img, idx) => {
-          const isLastPreview = capped && idx === maxImages! - 1 && remaining > 0;
-          return clickable ? (
-          <button
-            key={idx}
-            className="relative aspect-square overflow-hidden rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              setCurrentIndex(idx);
-              setLightboxOpen(true);
-            }}
-          >
-            <img
-              src={img}
-              alt={`${alt} ${idx + 1}`}
-              loading={idx < 3 ? "eager" : "lazy"}
-              width={300}
-              height={300}
-              className="w-full h-full object-cover transition-transform duration-300 hover:scale-[1.03]"
-            />
-            {isLastPreview && (
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center text-white text-lg font-bold rounded-md">
-                +{remaining}
-              </div>
-            )}
-          </button>
-          ) : (
-          <div
-            key={idx}
-            className="relative aspect-square overflow-hidden rounded-md"
-          >
-            <img
-              src={img}
-              alt={`${alt} ${idx + 1}`}
-              loading="lazy"
-              width={300}
-              height={300}
-              className="w-full h-full object-cover"
-            />
-            {isLastPreview && (
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center text-white text-lg font-bold rounded-md">
-                +{remaining}
-              </div>
-            )}
-          </div>
-          );
-        })}
-      </div>
+    <div className="space-y-3">
+      <button
+        type="button"
+        disabled={!clickable}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openLightbox(currentIndex);
+        }}
+        className={`relative block w-full overflow-hidden rounded-xl bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+          clickable ? "cursor-zoom-in" : "cursor-default"
+        }`}
+      >
+        <img
+          src={currentImage}
+          alt={alt}
+          loading="lazy"
+          width={960}
+          className="mx-auto max-h-[72vh] w-full object-contain"
+        />
+        {validImages.length > 1 && (
+          <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
+            {currentIndex + 1} / {validImages.length}
+          </span>
+        )}
+      </button>
+
+      {validImages.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin" aria-label="图片缩略图">
+          {previewImages.map((image, index) => {
+            const selected = index === currentIndex;
+            const isLastPreview = remaining > 0 && index === previewImages.length - 1;
+            return (
+              <button
+                key={`${image}-${index}`}
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setCurrentIndex(index);
+                }}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  openLightbox(index);
+                }}
+                aria-label={`查看第 ${index + 1} 张图片`}
+                aria-pressed={selected}
+                className={`relative h-16 w-16 flex-none overflow-hidden rounded-lg border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  selected ? "border-primary ring-2 ring-primary/20" : "border-border/70 hover:border-primary/50"
+                }`}
+              >
+                <img src={image} alt="" loading="lazy" className="h-full w-full object-cover" />
+                {isLastPreview && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-semibold text-white">
+                    +{remaining}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <Lightbox
         images={validImages}
         currentIndex={currentIndex}
@@ -108,6 +103,6 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
         onClose={() => setLightboxOpen(false)}
         onNavigate={setCurrentIndex}
       />
-    </>
+    </div>
   );
 }
