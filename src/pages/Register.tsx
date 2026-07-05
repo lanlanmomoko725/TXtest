@@ -267,6 +267,15 @@ export default function Register() {
               完成注册
             </Button>
           </form>
+          <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
+            注册即代表同意{" "}
+            <Link to="/user-agreement" className="text-primary hover:underline">
+              《用户协议》
+            </Link>
+            <Link to="/privacy-policy" className="text-primary hover:underline">
+              《隐私条款》
+            </Link>
+          </p>
           <div className="mt-5 text-center text-sm text-muted-foreground">
             已有账号？{" "}
             <Link to="/login" className="text-primary hover:underline">

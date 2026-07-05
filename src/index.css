@@ -282,9 +282,11 @@
   .article-content figure img {
     max-width: 100%;
     width: auto;
+    max-height: min(72vh, 720px);
     height: auto;
     border-radius: 8px;
     display: inline-block;
+    object-fit: contain;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
   .article-content a {

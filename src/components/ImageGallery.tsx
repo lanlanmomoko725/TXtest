@@ -41,7 +41,7 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
           event.stopPropagation();
           openLightbox(currentIndex);
         }}
-        className={`relative block w-full overflow-hidden rounded-xl bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+        className={`relative block h-[62vh] max-h-[520px] min-h-72 w-full overflow-hidden rounded-xl bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-[72vh] sm:max-h-[720px] ${
           clickable ? "cursor-zoom-in" : "cursor-default"
         }`}
       >
@@ -50,7 +50,7 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
           alt={alt}
           loading="lazy"
           width={960}
-          className="mx-auto max-h-[72vh] w-full object-contain"
+          className="h-full w-full object-contain"
         />
         {validImages.length > 1 && (
           <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">

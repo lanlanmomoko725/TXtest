@@ -18,6 +18,8 @@ import SkyEvents from "./pages/SkyEvents"
 import SkyGallery from "./pages/SkyGallery"
 import AboutUs from "./pages/AboutUs"
 import JoinUs from "./pages/JoinUs"
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy"
+import UserAgreement from "./pages/legal/UserAgreement"
 import TagPosts from "./pages/TagPosts"
 import SearchPage from "./pages/Search"
 import AdminUsers from "./pages/admin/Users"
@@ -63,6 +65,8 @@ export default function App() {
         <Route path="/sky-explanation" element={<SkyExplanation />} />
         <Route path="/about" element={<AboutUs />} />
         <Route path="/join-us" element={<JoinUs />} />
+        <Route path="/user-agreement" element={<UserAgreement />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/tag/:tag" element={<TagPosts />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/admin/users" element={<AdminUsers />} />
