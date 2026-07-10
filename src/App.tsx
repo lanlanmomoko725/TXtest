@@ -29,17 +29,20 @@ import AdminCommentReviews from "./pages/admin/CommentReviews"
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
 import ScrollManager from "./components/ScrollManager"
+import { LogoEasterEggProvider } from "./components/LogoEasterEgg"
 
 function Layout() {
   return (
-    <div className="min-h-screen flex flex-col bg-background transition-colors duration-300">
-      <ScrollManager />
-      <Navbar />
-      <main className="flex-1">
-        <Outlet />
-      </main>
-      <Footer />
-    </div>
+    <LogoEasterEggProvider>
+      <div className="min-h-screen flex flex-col bg-background transition-colors duration-300">
+        <ScrollManager />
+        <Navbar />
+        <main className="flex-1">
+          <Outlet />
+        </main>
+        <Footer />
+      </div>
+    </LogoEasterEggProvider>
   )
 }
 

@@ -118,6 +118,76 @@
   }
 }
 
+@keyframes logo-easter-cloud-drift {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -70%, 0) scale(0.86);
+  }
+  18% {
+    opacity: 0.72;
+  }
+  72% {
+    opacity: 0.56;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--cloud-drift-x), var(--cloud-drift-y), 0) scale(1.08);
+  }
+}
+
+@keyframes logo-easter-ice-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -5rem, 0) rotate(0deg) scale(0.72);
+  }
+  14% {
+    opacity: 0.86;
+  }
+  86% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--ice-drift-x), calc(100dvh + 8rem), 0) rotate(var(--ice-rotation)) scale(1);
+  }
+}
+
+.logo-easter-egg-overlay,
+.logo-easter-egg-run {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.logo-easter-egg-overlay {
+  z-index: 40;
+}
+
+.logo-easter-egg-cloud,
+.logo-easter-egg-ice {
+  position: absolute;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform, opacity;
+}
+
+.logo-easter-egg-cloud {
+  animation: logo-easter-cloud-drift 4.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.logo-easter-egg-ice {
+  top: -4rem;
+  animation: logo-easter-ice-fall 5.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  filter: drop-shadow(0 5px 7px rgb(125 211 252 / 0.22));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-easter-egg-overlay {
+    display: none;
+  }
+}
+
 /* Stagger entrance animation utilities */
 @layer utilities {
   .stagger-children > * {

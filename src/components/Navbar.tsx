@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { useLogoEasterEgg } from "@/components/LogoEasterEgg";
 
 type NavChild = {
   to: string;
@@ -82,10 +83,11 @@ function groupIsActive(group: NavGroup, pathname: string) {
   return group.items.some((item) => item.to === pathname);
 }
 
-function LogoLink({ className = "" }: { className?: string }) {
+function LogoLink({ className = "", onLogoClick }: { className?: string; onLogoClick?: () => void }) {
   return (
     <Link
       to="/"
+      onClick={() => onLogoClick?.()}
       className={`flex items-center gap-2 font-bold text-foreground transition-colors hover:opacity-80 focus-visible:rounded-lg ${className}`}
       aria-label="返回首页"
     >
@@ -103,6 +105,7 @@ function LogoLink({ className = "" }: { className?: string }) {
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const { recordLogoClick } = useLogoEasterEgg();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -438,7 +441,7 @@ export default function Navbar() {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="hidden md:flex h-16 items-center justify-between">
-          <LogoLink className="text-xl shrink-0" />
+          <LogoLink className="text-xl shrink-0" onLogoClick={recordLogoClick} />
 
           <div className="flex items-center gap-1 flex-shrink-0">
             {navGroups.map(renderDesktopGroup)}
@@ -486,7 +489,7 @@ export default function Navbar() {
               searchOpen ? "opacity-0 pointer-events-none" : "opacity-100"
             }`}
           >
-            <LogoLink className="text-lg truncate" />
+            <LogoLink className="text-lg truncate" onLogoClick={recordLogoClick} />
           </div>
 
           <div className="flex items-center gap-1 shrink-0">

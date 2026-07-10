@@ -36,12 +36,13 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
       <button
         type="button"
         disabled={!clickable}
+        aria-label={clickable ? `查看第 ${currentIndex + 1} 张图片` : undefined}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
           openLightbox(currentIndex);
         }}
-        className={`relative block h-[62vh] max-h-[520px] min-h-72 w-full overflow-hidden rounded-xl bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-[72vh] sm:max-h-[720px] ${
+        className={`relative grid h-[62dvh] max-h-[520px] min-h-72 w-full place-items-center bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-[72dvh] sm:max-h-[720px] ${
           clickable ? "cursor-zoom-in" : "cursor-default"
         }`}
       >
@@ -50,7 +51,7 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
           alt={alt}
           loading="lazy"
           width={960}
-          className="h-full w-full object-contain"
+          className="h-auto max-h-full w-auto max-w-full rounded-xl object-contain"
         />
         {validImages.length > 1 && (
           <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
