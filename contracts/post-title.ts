@@ -37,6 +37,19 @@ export function createPostSummary(content: string, maxLength = 30) {
     : plainText;
 }
 
-export function resolvePostTitle(title: string, content: string) {
+export function getPostPreviewTitle(title: string, content: string) {
   return title.trim() || createPostSummary(content);
+}
+
+export function isGeneratedPostTitle(title: string, content: string) {
+  const normalizedTitle = title.trim();
+  if (!normalizedTitle) return false;
+
+  const plainText = extractPostPlainText(content);
+  const legacySummary = plainText.slice(0, 30) + (plainText.length > 30 ? "..." : "");
+  return normalizedTitle === createPostSummary(content) || normalizedTitle === legacySummary;
+}
+
+export function hasExplicitPostTitle(title: string, content: string) {
+  return Boolean(title.trim()) && !isGeneratedPostTitle(title, content);
 }

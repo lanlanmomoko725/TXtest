@@ -5,7 +5,6 @@ import { getDb } from "./connection";
 import { findPublicUsersByIds } from "./users";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { filterSafeUploadPaths } from "@contracts/upload-path";
-import { resolvePostTitle } from "@contracts/post-title";
 
 // Extract image URLs from HTML content (for article mode images)
 function extractImagesFromHtml(html: string): string[] {
@@ -251,7 +250,7 @@ export async function createPost(data: {
   const tags = extractTagsFromHtml(content);
   const isSkyExplanation = tags.includes("天象解说图");
 
-  const title = resolvePostTitle(data.title, content);
+  const title = data.title.trim();
 
   const insertData: InsertPost = {
     title,
@@ -318,7 +317,7 @@ export async function updatePost(
     nextImages = filterSafeUploadPaths(data.images);
     updateData.images = nextImages;
   }
-  if (data.title !== undefined) updateData.title = resolvePostTitle(data.title, nextContent);
+  if (data.title !== undefined) updateData.title = data.title.trim();
   if (data.category !== undefined) updateData.category = data.category as InsertPost["category"];
   if (data.region !== undefined) updateData.region = data.region;
   if (data.hasLocation !== undefined) updateData.hasLocation = data.hasLocation;

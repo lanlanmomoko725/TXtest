@@ -158,6 +158,7 @@ export async function listPendingComments() {
         .select({
           id: schema.posts.id,
           title: schema.posts.title,
+          content: schema.posts.content,
         })
         .from(schema.posts)
         .where(inArray(schema.posts.id, postIds))

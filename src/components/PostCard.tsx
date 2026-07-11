@@ -6,7 +6,7 @@ import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { formatShortDate } from "@/lib/date-format";
 import { CATEGORY_LABEL_MAP } from "@contracts/constants";
-import { createPostSummary } from "@contracts/post-title";
+import { getPostPreviewTitle } from "@contracts/post-title";
 import { Calendar, Eye, Heart, Loader2, MapPin } from "lucide-react";
 import type { Post, User } from "@db/schema";
 
@@ -28,7 +28,7 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
   const categoryLabel = CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const coverImage = post.coverImage || images[0] || "";
-  const displayTitle = post.title.trim() || createPostSummary(post.content);
+  const displayTitle = getPostPreviewTitle(post.title, post.content);
   const weeklyLikeCount = post.weeklyLikeCount ?? post.likeCount ?? 0;
   const showLikeButton = isAuthenticated && !hideMeta && !post.skyGalleryCategory;
   const toggleLike = trpc.post.toggleLike.useMutation({
@@ -60,7 +60,7 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
           <div className="overflow-hidden bg-muted">
             <img
               src={coverImage}
-              alt={post.title || "内容封面"}
+              alt={displayTitle || "内容封面"}
               loading="lazy"
               width={640}
               className="h-auto w-full object-cover transition-transform duration-500 ease-out-quart group-hover:scale-[1.015]"

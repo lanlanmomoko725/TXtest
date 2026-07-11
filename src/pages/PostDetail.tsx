@@ -11,8 +11,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ImageGallery from "@/components/ImageGallery";
 import TagContent from "@/components/TagContent";
+import InlineEmoticons from "@/components/InlineEmoticons";
 import { formatShortDateTime } from "@/lib/date-format";
 import { CATEGORY_LABEL_MAP } from "@contracts/constants";
+import { getPostPreviewTitle, hasExplicitPostTitle } from "@contracts/post-title";
 import {
   ArrowLeft,
   Calendar,
@@ -185,6 +187,8 @@ export default function PostDetail() {
   const categoryLabel =
     CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images : [];
+  const previewTitle = getPostPreviewTitle(post.title, post.content);
+  const displayTitle = hasExplicitPostTitle(post.title, post.content) ? post.title.trim() : "";
   const weeklyLikeCount = post.weeklyLikeCount ?? post.likeCount ?? 0;
   const commentContentLength = commentContent.trim().length;
   const replyContentLength = replyContent.trim().length;
@@ -203,17 +207,19 @@ export default function PostDetail() {
                 <Link to="/sky-gallery" className="hover:text-primary transition-colors rounded focus-visible:ring-2 focus-visible:ring-ring px-1">
                   天空图鉴
                 </Link>
-                <ChevronRight className="h-3.5 w-3.5" />
+                {displayTitle ? <ChevronRight className="h-3.5 w-3.5" /> : null}
               </>
             ) : (
               <>
                 <Link to={`/category/${post.category}`} className="hover:text-primary transition-colors rounded focus-visible:ring-2 focus-visible:ring-ring px-1">
                   {categoryLabel}
                 </Link>
-                <ChevronRight className="h-3.5 w-3.5" />
+                {displayTitle ? <ChevronRight className="h-3.5 w-3.5" /> : null}
               </>
             )}
-            <span className="text-foreground truncate max-w-[200px] sm:max-w-sm">{post.title}</span>
+            {displayTitle ? (
+              <span className="text-foreground truncate max-w-[200px] sm:max-w-sm">{displayTitle}</span>
+            ) : null}
           </nav>
 
           <header className="mb-6 sm:mb-8">
@@ -235,9 +241,9 @@ export default function PostDetail() {
                 )}
               </div>
             )}
-            {post.title && (
+            {displayTitle && (
               <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-5 text-wrap:balance">
-                {post.title}
+                {displayTitle}
               </h1>
             )}
 
@@ -326,7 +332,7 @@ export default function PostDetail() {
 
           {!post.isArticle && images.length > 0 && (
             <div className="mb-6">
-              <ImageGallery images={images} alt={post.title} />
+              <ImageGallery images={images} alt={previewTitle} />
             </div>
           )}
 
@@ -448,7 +454,7 @@ export default function PostDetail() {
                           <p className="break-words text-sm leading-relaxed text-foreground/85">
                             <span className="font-medium text-primary">{authorName}</span>
                             <span>：</span>
-                            <span className="whitespace-pre-wrap break-words">{comment.content}</span>
+                            <InlineEmoticons text={comment.content} className="whitespace-pre-wrap break-words" />
                           </p>
                           <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
                             <span className="tabular-nums">{formatShortDateTime(comment.createdAt)}</span>
@@ -535,7 +541,7 @@ export default function PostDetail() {
                                           <span>：</span>
                                         </>
                                       ) : null}
-                                      <span className="whitespace-pre-wrap break-words">{reply.content}</span>
+                                      <InlineEmoticons text={reply.content} className="whitespace-pre-wrap break-words" />
                                     </p>
                                     <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
                                       <span className="tabular-nums">{formatShortDateTime(reply.createdAt)}</span>

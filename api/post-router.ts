@@ -17,6 +17,7 @@ import { createAuditLog } from "./lib/audit";
 import { CATEGORY_LABEL_MAP, SKY_CATEGORY_IDS } from "@contracts/constants";
 import { consumeRateLimit, isRateLimitAvailable, rateLimitKey } from "./lib/rate-limit";
 import { requestIp } from "./lib/request-info";
+import { getPostPreviewTitle } from "@contracts/post-title";
 
 export const postRouter = createRouter({
   list: publicQuery
@@ -171,7 +172,7 @@ export const postRouter = createRouter({
         action: "delete_post",
         targetType: "post",
         targetId: input.id,
-        details: { title: post.title },
+        details: { title: getPostPreviewTitle(post.title, post.content) },
       });
       return { success: true };
     }),

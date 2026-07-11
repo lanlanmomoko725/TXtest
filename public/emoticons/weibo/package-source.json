@@ -1,0 +1,33 @@
+{
+  "name": "weibo-emoticon",
+  "version": "1.1.5",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "gulp build",
+    "ci-publish": "ci-publish"
+  },
+  "author": "",
+  "license": "ISC",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
+  "files": [
+    "/release"
+  ],
+  "devDependencies": {
+    "ci-publish": "^1.3.1",
+    "del": "^5.1.0",
+    "gulp": "^4.0.2",
+    "gulp-cli": "^2.3.0",
+    "gulp-if": "^3.0.0",
+    "gulp-image-resize": "^0.13.1",
+    "gulp-imagemin": "^7.1.0",
+    "gulp-rename": "*",
+    "gulp-rev": "^9.0.0",
+    "gulp-rev-collector": "^1.3.3",
+    "gulp-rev-replace": "^0.4.3",
+    "gulp.spritesmith": "^6.2.1",
+    "merge-stream": "^2.0.0"
+  }
+}

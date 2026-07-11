@@ -12,6 +12,7 @@ import {
   Cloud,
   ArrowRight,
 } from "lucide-react";
+import { getPostPreviewTitle } from "@contracts/post-title";
 
 export default function Home() {
   const { data: featuredPosts, isLoading: featuredLoading } = trpc.post.featured.useQuery({ limit: 10 });
@@ -48,6 +49,9 @@ export default function Home() {
   }, [carouselPosts.length]);
 
   const currentPost = carouselPosts[currentIndex];
+  const currentPostTitle = currentPost
+    ? getPostPreviewTitle(currentPost.title, currentPost.content)
+    : "";
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -66,6 +70,7 @@ export default function Home() {
             {/* Slides */}
             {carouselPosts.map((post, idx) => {
               const imageUrl = post.images?.[0] || "";
+              const previewTitle = getPostPreviewTitle(post.title, post.content);
               return (
                 <div
                   key={post.id}
@@ -77,7 +82,7 @@ export default function Home() {
                     type="button"
                     className="group absolute inset-0 cursor-pointer overflow-hidden border-0 bg-transparent p-0 text-left"
                     onClick={() => navigate(`/post/${post.id}`)}
-                    aria-label={`查看精选：${post.title}`}
+                    aria-label={`查看精选：${previewTitle}`}
                   >
                     <img
                       src={imageUrl}
@@ -87,7 +92,7 @@ export default function Home() {
                     />
                     <img
                       src={imageUrl}
-                      alt={post.title}
+                      alt={previewTitle}
                       className="relative z-10 h-full w-full object-contain transition-transform duration-1000 ease-out motion-safe:group-hover:scale-[1.01]"
                       loading={idx === 0 ? "eager" : "lazy"}
                     />
@@ -104,8 +109,8 @@ export default function Home() {
                   className="pointer-events-auto inline-flex max-w-[min(92vw,520px)] items-center gap-2 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/25 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <span className="truncate">
-                    查看精选：{currentPost.title.slice(0, 24)}
-                    {currentPost.title.length > 24 ? "…" : ""}
+                    查看精选：{currentPostTitle.slice(0, 24)}
+                    {currentPostTitle.length > 24 ? "…" : ""}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                 </Link>

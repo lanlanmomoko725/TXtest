@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Check, Loader2, MessageCircleMore, X } from "lucide-react";
+import InlineEmoticons from "@/components/InlineEmoticons";
+import { getPostPreviewTitle } from "@contracts/post-title";
 
 export default function AdminCommentReviews() {
   const utils = trpc.useUtils();
@@ -73,7 +75,7 @@ export default function AdminCommentReviews() {
                     </TableCell>
                     <TableCell>
                       <div className="max-w-md whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
-                        {comment.content}
+                        <InlineEmoticons text={comment.content} />
                       </div>
                       {comment.parentId ? (
                         <Badge variant="outline" className="mt-2">
@@ -84,7 +86,7 @@ export default function AdminCommentReviews() {
                     <TableCell>
                       {comment.post ? (
                         <Link to={`/post/${comment.postId}`} className="text-sm font-medium text-primary hover:underline">
-                          {comment.post.title}
+                          {getPostPreviewTitle(comment.post.title, comment.post.content)}
                         </Link>
                       ) : (
                         <span className="text-sm text-muted-foreground">帖子不存在</span>

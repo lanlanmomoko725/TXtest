@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { escapeAttr, escapeHtml, sanitizeHtml } from "@contracts/html-sanitizer";
+import { renderWeiboEmoticonsHtml } from "@/lib/weibo-emoticons";
 import Lightbox from "./Lightbox";
 
 interface TagContentProps {
@@ -32,7 +33,8 @@ function linkKeyword(hostname: string): { label: string; color: string } {
 }
 
 function enhanceText(text: string): string {
-  const withTags = text.replace(/#([^#\s]+)#/g, (_fullMatch, tag: string) => {
+  const withEmoticons = renderWeiboEmoticonsHtml(text);
+  const withTags = withEmoticons.replace(/#([^#\s]+)#/g, (_fullMatch, tag: string) => {
     const safeTag = escapeHtml(tag);
     const encodedTag = encodeURIComponent(tag);
     return `<a href="/tag/${encodedTag}" class="inline-flex items-center text-sky-500 hover:text-sky-600 font-medium no-underline bg-sky-50 px-1 rounded transition-colors" data-tag="${escapeAttr(tag)}">#${safeTag}#</a>`;
@@ -89,6 +91,7 @@ export default function TagContent({ html, className = "" }: TagContentProps) {
           const target = e.target as HTMLElement;
           const image = target.closest("img") as HTMLImageElement | null;
           if (image) {
+            if (image.dataset.emoticon === "true") return;
             const src = image.getAttribute("src") || image.src;
             const index = imageSources.indexOf(src);
             if (index >= 0) {
