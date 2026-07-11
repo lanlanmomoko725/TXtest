@@ -1,4 +1,4 @@
-import { ChevronUp, Maximize2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, Maximize2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Lightbox from "./Lightbox";
 
@@ -74,12 +74,34 @@ export default function ImageGallery({ images, alt = "图片", clickable = true 
             </div>
 
             <div className="flex w-full justify-center">
-              <img
-                src={currentImage}
-                alt={`${alt} 第 ${currentIndex + 1} 张`}
-                loading="lazy"
-                className="block h-auto max-h-[min(72dvh,720px)] w-auto max-w-full rounded-lg object-contain"
-              />
+              <div className="relative inline-flex max-w-full items-center justify-center">
+                <img
+                  src={currentImage}
+                  alt={`${alt} 第 ${currentIndex + 1} 张`}
+                  loading="lazy"
+                  className="block h-auto max-h-[min(72dvh,720px)] w-auto max-w-full rounded-lg object-contain"
+                />
+                {currentIndex > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentIndex((index) => index - 1)}
+                    aria-label="上一张图片"
+                    className="absolute left-2 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors hover:bg-black/65 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                )}
+                {currentIndex < validImages.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentIndex((index) => index + 1)}
+                    aria-label="下一张图片"
+                    className="absolute right-2 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors hover:bg-black/65 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {validImages.length > 1 && (

@@ -154,7 +154,7 @@ export default function CreatePost() {
   }
 
   const handleSubmit = () => {
-    if (!title.trim() || !content.trim()) return;
+    if (!content.trim()) return;
     if (!category) return;
 
     const finalContent = isArticle
@@ -171,18 +171,12 @@ export default function CreatePost() {
       }
     }
 
-    let finalTitle = title.trim();
-    if (!finalTitle) {
-      const plainText = finalContent.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-      finalTitle = plainText.slice(0, 30) + (plainText.length > 30 ? "…" : "");
-    }
-
     const finalCoverImage = coverCandidates.includes(coverImage)
       ? coverImage
       : coverCandidates[0] || "";
 
     createPost.mutate({
-      title: finalTitle,
+      title: title.trim(),
       content: finalContent,
       category: category as SkyCategory,
       hasLocation,
@@ -301,7 +295,7 @@ export default function CreatePost() {
           {/* Title */}
           <div>
             <Label htmlFor="title" className="text-sm font-medium">
-              标题
+              标题（非必填项）
             </Label>
             <Input
               id="title"

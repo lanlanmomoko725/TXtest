@@ -138,7 +138,7 @@ export const postRouter = createRouter({
     .input(
       z.object({
         id: z.number(),
-        title: z.string().min(1).max(255).optional(),
+        title: z.string().max(255).optional(),
         content: z.string().min(1).optional(),
         category: z.enum(SKY_CATEGORY_IDS).optional(),
         region: z.string().optional(),

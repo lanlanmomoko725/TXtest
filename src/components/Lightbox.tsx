@@ -411,7 +411,9 @@ export default function Lightbox({
 
       {/* Image container with transition animation */}
       <div
-        className="relative flex items-center justify-center select-none z-10"
+        className={`absolute inset-x-2 top-12 z-10 flex select-none items-center justify-center sm:inset-x-16 ${
+          images.length > 1 ? "bottom-36" : "bottom-20"
+        }`}
         onMouseDown={onMouseDownImg}
         onMouseMove={onMouseMoveImg}
         onMouseUp={onMouseUpImg}
@@ -419,11 +421,11 @@ export default function Lightbox({
         onClick={(e) => e.stopPropagation()}
         style={{ cursor: isMouseDragging ? "grabbing" : scale > 1 ? "grab" : "default" }}
       >
-        <div key={currentIndex} className={`${imageAnimationClass} flex items-center justify-center`}>
+        <div key={currentIndex} className={`${imageAnimationClass} flex h-full w-full items-center justify-center`}>
           <img
             src={images[currentIndex]}
             alt={`图片 ${currentIndex + 1}`}
-            className="max-h-[74vh] max-w-[90vw] object-contain shadow-elevated"
+            className="h-full w-full object-contain"
             style={{
               transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
               transition: isMouseDragging ? "none" : "transform 0.15s ease-out",

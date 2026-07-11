@@ -5,6 +5,7 @@ import { getDb } from "./connection";
 import { findPublicUsersByIds } from "./users";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { filterSafeUploadPaths } from "@contracts/upload-path";
+import { resolvePostTitle } from "@contracts/post-title";
 
 // Extract image URLs from HTML content (for article mode images)
 function extractImagesFromHtml(html: string): string[] {
@@ -222,11 +223,6 @@ export async function findFeaturedPosts(limit = 6, currentUserId?: number) {
   return findPosts({ featured: true, limit, currentUserId });
 }
 
-// Extract plain text from HTML content (for auto-title generation)
-function extractPlainTextFromHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-}
-
 export async function createPost(data: {
   title: string;
   content: string;
@@ -255,12 +251,7 @@ export async function createPost(data: {
   const tags = extractTagsFromHtml(content);
   const isSkyExplanation = tags.includes("天象解说图");
 
-  // Auto-generate title from content if empty
-  let title = data.title.trim();
-  if (!title) {
-    const plainText = extractPlainTextFromHtml(content);
-    title = plainText.slice(0, 30) + (plainText.length > 30 ? "..." : "");
-  }
+  const title = resolvePostTitle(data.title, content);
 
   const insertData: InsertPost = {
     title,
@@ -305,7 +296,6 @@ export async function updatePost(
   let nextContent = sanitizeHtml(existingPost.content);
   let nextImages: string[] | null = normalizeImages(existingPost.images);
   const nextIsArticle = data.isArticle ?? existingPost.isArticle;
-  if (data.title !== undefined) updateData.title = data.title;
   if (data.content !== undefined) {
     const content = sanitizeHtml(data.content);
     nextContent = content;
@@ -328,6 +318,7 @@ export async function updatePost(
     nextImages = filterSafeUploadPaths(data.images);
     updateData.images = nextImages;
   }
+  if (data.title !== undefined) updateData.title = resolvePostTitle(data.title, nextContent);
   if (data.category !== undefined) updateData.category = data.category as InsertPost["category"];
   if (data.region !== undefined) updateData.region = data.region;
   if (data.hasLocation !== undefined) updateData.hasLocation = data.hasLocation;

@@ -6,12 +6,9 @@ import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { formatShortDate } from "@/lib/date-format";
 import { CATEGORY_LABEL_MAP } from "@contracts/constants";
+import { createPostSummary } from "@contracts/post-title";
 import { Calendar, Eye, Heart, Loader2, MapPin } from "lucide-react";
 import type { Post, User } from "@db/schema";
-
-function extractPlainText(html: string): string {
-  return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-}
 
 type PostCardData = Post & {
   author: Pick<User, "id" | "publicId" | "name" | "avatar" | "role" | "level" | "createdAt"> | null;
@@ -31,10 +28,7 @@ export default function PostCard({ post, hideMeta }: PostCardProps) {
   const categoryLabel = CATEGORY_LABEL_MAP[post.category as keyof typeof CATEGORY_LABEL_MAP] || post.category;
   const images = post.images && Array.isArray(post.images) ? post.images.filter(Boolean) : [];
   const coverImage = post.coverImage || images[0] || "";
-  const plainContent = extractPlainText(post.content);
-  const displayTitle = post.title && post.title !== plainContent.slice(0, 30) + (plainContent.length > 30 ? "..." : "")
-    ? post.title
-    : plainContent;
+  const displayTitle = post.title.trim() || createPostSummary(post.content);
   const weeklyLikeCount = post.weeklyLikeCount ?? post.likeCount ?? 0;
   const showLikeButton = isAuthenticated && !hideMeta && !post.skyGalleryCategory;
   const toggleLike = trpc.post.toggleLike.useMutation({
