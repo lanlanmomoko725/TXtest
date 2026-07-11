@@ -45,13 +45,6 @@ export default function AboutUs() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-none">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4 max-w-5xl mx-auto">
-          <Link to="/" className="hover:text-primary">首页</Link>
-          <span>/</span>
-          <span className="text-foreground font-medium">我们是谁</span>
-        </div>
-
         {/* Header */}
         <div className="mb-8 max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">

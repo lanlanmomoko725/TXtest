@@ -5,12 +5,6 @@ export default function JoinUs() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <Link to="/" className="hover:text-primary">首页</Link>
-          <span>/</span>
-          <span className="text-foreground font-medium">加入我们</span>
-        </div>
-
         <div className="mb-8 flex items-center gap-3">
           <Link to="/" className="p-2 rounded-full hover:bg-muted transition-colors">
             <ArrowLeft className="h-5 w-5 text-muted-foreground" />

@@ -61,7 +61,7 @@ export default function Footer() {
               {SKY_CATEGORIES.map((cat) => (
                 <li key={cat.id}>
                   <Link
-                    to={`/category/${cat.id}`}
+                    to={`/sky-events?category=${encodeURIComponent(cat.id)}`}
                     className="group inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:rounded"
                   >
                     {cat.label}

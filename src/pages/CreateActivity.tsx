@@ -127,11 +127,6 @@ export default function CreateActivity() {
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-              <Link to="/activities" className="hover:text-primary">组织活动</Link>
-              <span>/</span>
-              <span className="font-medium text-foreground">发布活动</span>
-            </div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
               <CalendarDays className="h-6 w-6 text-primary" />
               发布组织活动

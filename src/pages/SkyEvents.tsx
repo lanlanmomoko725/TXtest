@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { trpc } from "@/providers/trpc";
 import PostCard from "@/components/PostCard";
 import MasonryGrid, { MasonryItem } from "@/components/MasonryGrid";
@@ -19,6 +19,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function SkyEventsPage() {
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedCategory = searchParams.get("category");
+  const requestedRegion = searchParams.get("region");
+  const activeCategory = SKY_CATEGORIES.find((category) => category.id === requestedCategory);
+  const activeRegion = REGIONS.find((region) => region === requestedRegion);
+  const sort: "time" | "hot" = searchParams.get("sort") === "hot" ? "hot" : "time";
   const autoOpenRef = useRef(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window !== "undefined" && sessionStorage.getItem("sidebar_auto_open") === "1") {
@@ -28,11 +34,12 @@ export default function SkyEventsPage() {
     }
     return typeof window !== "undefined" ? window.innerWidth >= 768 : true;
   });
-  const [categoryOpen, setCategoryOpen] = useState(true);
-  const [regionOpen, setRegionOpen] = useState(false);
-  const [sort, setSort] = useState<"time" | "hot">("time");
+  const [categoryOpen, setCategoryOpen] = useState(!activeRegion);
+  const [regionOpen, setRegionOpen] = useState(Boolean(activeRegion));
 
   const { data: posts, isLoading } = trpc.post.list.useQuery({
+    category: activeCategory?.id,
+    region: activeRegion,
     isArticle: false,
     isSkyExplanation: false,
     sort,
@@ -50,6 +57,52 @@ export default function SkyEventsPage() {
     autoOpenRef.current = false;
   }, [isMobile]);
 
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    if (requestedCategory && !activeCategory) {
+      next.delete("category");
+      changed = true;
+    }
+    if ((requestedRegion && !activeRegion) || (activeCategory && requestedRegion)) {
+      next.delete("region");
+      changed = true;
+    }
+    const requestedSort = searchParams.get("sort");
+    if (requestedSort && requestedSort !== "time" && requestedSort !== "hot") {
+      next.delete("sort");
+      changed = true;
+    }
+    if (changed) setSearchParams(next, { replace: true });
+  }, [activeCategory, activeRegion, requestedCategory, requestedRegion, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (activeCategory) {
+      setCategoryOpen(true);
+      setRegionOpen(false);
+    } else if (activeRegion) {
+      setCategoryOpen(false);
+      setRegionOpen(true);
+    }
+  }, [activeCategory, activeRegion]);
+
+  const filterHref = (type?: "category" | "region", value?: string) => {
+    const next = new URLSearchParams();
+    if (type && value) next.set(type, value);
+    if (sort === "hot") next.set("sort", "hot");
+    const query = next.toString();
+    return query ? `/sky-events?${query}` : "/sky-events";
+  };
+
+  const handleSortChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === "hot") next.set("sort", "hot");
+    else next.delete("sort");
+    setSearchParams(next);
+  };
+
+  const pageTitle = activeCategory?.label || activeRegion || "实时天象";
+
   return (
     <div className="min-h-screen flex">
       {/* 左侧分类栏 */}
@@ -59,10 +112,16 @@ export default function SkyEventsPage() {
         } fixed md:sticky top-16 md:top-16 left-0 z-40 h-[calc(100dvh-4rem)] w-52 bg-background border-r border-border/60 shrink-0 transition-transform duration-200 md:translate-x-0 flex flex-col`}
       >
         <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground mb-3 pb-2 border-b border-border/40">
+          <Link
+            to={filterHref()}
+            onClick={() => isMobile && setSidebarOpen(false)}
+            className={`mb-3 flex items-center gap-2 border-b border-border/40 pb-2 text-sm font-semibold transition-colors ${
+              !activeCategory && !activeRegion ? "text-primary" : "text-foreground hover:text-primary"
+            }`}
+          >
             <Clock className="h-4 w-4 text-primary" />
             实时天象
-          </h2>
+          </Link>
 
           {/* 按天象分类 */}
           <div className="mb-1">
@@ -85,8 +144,14 @@ export default function SkyEventsPage() {
                 {SKY_CATEGORIES.map((cat) => (
                   <Link
                     key={cat.id}
-                    to={`/category/${cat.id}`}
-                    className="flex items-center justify-between py-2 px-2 text-sm text-muted-foreground rounded-md hover:bg-primary/5 hover:text-primary transition-colors"
+                    to={filterHref("category", cat.id)}
+                    onClick={() => isMobile && setSidebarOpen(false)}
+                    aria-current={activeCategory?.id === cat.id ? "page" : undefined}
+                    className={`flex items-center justify-between rounded-md px-2 py-2 text-sm transition-colors ${
+                      activeCategory?.id === cat.id
+                        ? "bg-primary/10 font-medium text-primary"
+                        : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
+                    }`}
                   >
                     <span>{cat.label}</span>
                     <span className="text-xs text-muted-foreground/50">{cat.description.slice(0, 8)}…</span>
@@ -118,8 +183,14 @@ export default function SkyEventsPage() {
                   {REGIONS.map((region) => (
                     <Link
                       key={region}
-                      to={`/region/${region}`}
-                      className="py-1.5 text-xs text-muted-foreground text-center rounded-md hover:bg-primary/5 hover:text-primary transition-colors"
+                      to={filterHref("region", region)}
+                      onClick={() => isMobile && setSidebarOpen(false)}
+                      aria-current={activeRegion === region ? "page" : undefined}
+                      className={`rounded-md py-1.5 text-center text-xs transition-colors ${
+                        activeRegion === region
+                          ? "bg-primary/10 font-medium text-primary"
+                          : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
+                      }`}
                     >
                       {region}
                     </Link>
@@ -159,13 +230,13 @@ export default function SkyEventsPage() {
               )}
               <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                 <Clock className="h-6 w-6 text-primary" />
-                实时天象
+                {pageTitle}
               </h1>
               <span className="text-sm text-muted-foreground/50">
                 {posts?.length || 0} 条记录
               </span>
             </div>
-            <Tabs value={sort} onValueChange={(value) => setSort(value as "time" | "hot")}>
+            <Tabs value={sort} onValueChange={handleSortChange}>
               <TabsList>
                 <TabsTrigger value="time">最新</TabsTrigger>
                 <TabsTrigger value="hot">最热</TabsTrigger>

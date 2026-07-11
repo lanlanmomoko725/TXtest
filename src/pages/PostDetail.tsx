@@ -19,7 +19,6 @@ import {
   ArrowLeft,
   Calendar,
   ChevronDown,
-  ChevronRight,
   Eye,
   Heart,
   Loader2,
@@ -197,31 +196,6 @@ export default function PostDetail() {
     <TooltipProvider>
       <div className="min-h-screen bg-background">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-3 sm:py-8">
-          <nav aria-label="面包屑" className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 sm:mb-6">
-            <Link to="/" className="hover:text-primary transition-colors rounded focus-visible:ring-2 focus-visible:ring-ring px-1 -ml-1">
-              首页
-            </Link>
-            <ChevronRight className="h-3.5 w-3.5" />
-            {isSkyGallery ? (
-              <>
-                <Link to="/sky-gallery" className="hover:text-primary transition-colors rounded focus-visible:ring-2 focus-visible:ring-ring px-1">
-                  天空图鉴
-                </Link>
-                {displayTitle ? <ChevronRight className="h-3.5 w-3.5" /> : null}
-              </>
-            ) : (
-              <>
-                <Link to={`/category/${post.category}`} className="hover:text-primary transition-colors rounded focus-visible:ring-2 focus-visible:ring-ring px-1">
-                  {categoryLabel}
-                </Link>
-                {displayTitle ? <ChevronRight className="h-3.5 w-3.5" /> : null}
-              </>
-            )}
-            {displayTitle ? (
-              <span className="text-foreground truncate max-w-[200px] sm:max-w-sm">{displayTitle}</span>
-            ) : null}
-          </nav>
-
           <header className="mb-6 sm:mb-8">
             {!isSkyGallery && (
               <div className="flex items-center gap-2 mb-3 flex-wrap">
