@@ -1,17 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChevronUp, Maximize2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Lightbox from "./Lightbox";
 
 interface ImageGalleryProps {
   images: string[];
   alt?: string;
   clickable?: boolean;
-  maxImages?: number;
 }
 
-export default function ImageGallery({ images, alt = "图片", clickable = true, maxImages }: ImageGalleryProps) {
+const GRID_PREVIEW_LIMIT = 9;
+
+function getGridColumns(imageCount: number) {
+  return imageCount === 2 || imageCount === 4 ? "grid-cols-2" : "grid-cols-3";
+}
+
+export default function ImageGallery({ images, alt = "图片", clickable = true }: ImageGalleryProps) {
   const validImages = useMemo(() => images.filter(Boolean), [images]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const selectedThumbnailRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (currentIndex >= validImages.length) {
@@ -19,83 +27,144 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
     }
   }, [currentIndex, validImages.length]);
 
+  useEffect(() => {
+    if (!expanded) return;
+    selectedThumbnailRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [currentIndex, expanded]);
+
   if (validImages.length === 0) return null;
 
-  const previewImages = typeof maxImages === "number" ? validImages.slice(0, maxImages) : validImages;
-  const remaining = validImages.length - previewImages.length;
+  const gridImages = validImages.slice(0, GRID_PREVIEW_LIMIT);
+  const hiddenCount = Math.max(validImages.length - GRID_PREVIEW_LIMIT, 0);
   const currentImage = validImages[currentIndex] ?? validImages[0];
 
-  const openLightbox = (index: number) => {
+  const expandImage = (index: number) => {
     if (!clickable) return;
     setCurrentIndex(index);
-    setLightboxOpen(true);
+    setExpanded(true);
   };
 
   return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        disabled={!clickable}
-        aria-label={clickable ? `查看第 ${currentIndex + 1} 张图片` : undefined}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          openLightbox(currentIndex);
-        }}
-        className={`relative grid h-[62dvh] max-h-[520px] min-h-72 w-full place-items-center bg-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-[72dvh] sm:max-h-[720px] ${
-          clickable ? "cursor-zoom-in" : "cursor-default"
-        }`}
-      >
-        <img
-          src={currentImage}
-          alt={alt}
-          loading="lazy"
-          width={960}
-          className="h-auto max-h-full w-auto max-w-full rounded-xl object-contain"
-        />
-        {validImages.length > 1 && (
-          <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
-            {currentIndex + 1} / {validImages.length}
-          </span>
-        )}
-      </button>
+    <>
+      <div className="space-y-3">
+        {expanded ? (
+          <section className="space-y-3 animate-fade-in" aria-label="图片展开查看">
+            <div className="flex min-h-11 items-center justify-between gap-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(false)}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                  收起
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2.5 transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:px-3"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                  查看大图
+                </button>
+              </div>
+              <span className="shrink-0 tabular-nums" aria-live="polite">
+                {currentIndex + 1} / {validImages.length}
+              </span>
+            </div>
 
-      {validImages.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin" aria-label="图片缩略图">
-          {previewImages.map((image, index) => {
-            const selected = index === currentIndex;
-            const isLastPreview = remaining > 0 && index === previewImages.length - 1;
-            return (
-              <button
-                key={`${image}-${index}`}
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setCurrentIndex(index);
-                }}
-                onDoubleClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  openLightbox(index);
-                }}
-                aria-label={`查看第 ${index + 1} 张图片`}
-                aria-pressed={selected}
-                className={`relative h-16 w-16 flex-none overflow-hidden rounded-lg border transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  selected ? "border-primary ring-2 ring-primary/20" : "border-border/70 hover:border-primary/50"
-                }`}
-              >
-                <img src={image} alt="" loading="lazy" className="h-full w-full object-cover" />
-                {isLastPreview && (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-semibold text-white">
-                    +{remaining}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+            <div className="flex w-full justify-center">
+              <img
+                src={currentImage}
+                alt={`${alt} 第 ${currentIndex + 1} 张`}
+                loading="lazy"
+                className="block h-auto max-h-[min(72dvh,720px)] w-auto max-w-full rounded-lg object-contain"
+              />
+            </div>
+
+            {validImages.length > 1 && (
+              <div className="flex max-w-full gap-2 overflow-x-auto pb-1 scrollbar-thin" aria-label="图片缩略图">
+                {validImages.map((image, index) => {
+                  const selected = index === currentIndex;
+                  return (
+                    <button
+                      key={`${image}-${index}`}
+                      ref={selected ? selectedThumbnailRef : null}
+                      type="button"
+                      onClick={() => setCurrentIndex(index)}
+                      aria-label={`切换到第 ${index + 1} 张图片`}
+                      aria-pressed={selected}
+                      className={`relative h-16 w-16 flex-none overflow-hidden rounded-md border transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                        selected
+                          ? "border-primary ring-2 ring-primary/20"
+                          : "border-border/70 opacity-75 hover:border-primary/60 hover:opacity-100"
+                      }`}
+                    >
+                      <img src={image} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : validImages.length === 1 ? (
+          <div className="max-w-[520px]">
+            <button
+              type="button"
+              disabled={!clickable}
+              onClick={() => expandImage(0)}
+              aria-label="展开图片"
+              className={`group relative inline-flex max-h-[420px] max-w-full overflow-hidden rounded-lg align-top focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                clickable ? "cursor-zoom-in" : "cursor-default"
+              }`}
+            >
+              <img
+                src={validImages[0]}
+                alt={alt}
+                loading="lazy"
+                className="block h-auto max-h-[420px] w-auto max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.01]"
+              />
+            </button>
+          </div>
+        ) : (
+          <div
+            className={`grid w-full max-w-[640px] gap-1 ${getGridColumns(validImages.length)}`}
+            aria-label={`共 ${validImages.length} 张图片`}
+          >
+            {gridImages.map((image, index) => {
+              const isOverflowTile = index === GRID_PREVIEW_LIMIT - 1 && hiddenCount > 0;
+              const label = isOverflowTile
+                ? `展开第 ${index + 1} 张图片，另有 ${hiddenCount} 张图片`
+                : `展开第 ${index + 1} 张图片`;
+
+              return (
+                <button
+                  key={`${image}-${index}`}
+                  type="button"
+                  disabled={!clickable}
+                  onClick={() => expandImage(index)}
+                  aria-label={label}
+                  className={`group relative aspect-square min-w-0 overflow-hidden rounded-md bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    clickable ? "cursor-zoom-in active:scale-[0.99]" : "cursor-default"
+                  }`}
+                >
+                  <img
+                    src={image}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                  />
+                  {isOverflowTile && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-2xl font-semibold text-white" aria-hidden="true">
+                      +{hiddenCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <Lightbox
         images={validImages}
@@ -104,6 +173,6 @@ export default function ImageGallery({ images, alt = "图片", clickable = true,
         onClose={() => setLightboxOpen(false)}
         onNavigate={setCurrentIndex}
       />
-    </div>
+    </>
   );
 }

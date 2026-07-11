@@ -423,7 +423,7 @@ export default function Lightbox({
           <img
             src={images[currentIndex]}
             alt={`图片 ${currentIndex + 1}`}
-            className="max-h-[74vh] max-w-[90vw] rounded-lg object-contain shadow-elevated"
+            className="max-h-[74vh] max-w-[90vw] object-contain shadow-elevated"
             style={{
               transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
               transition: isMouseDragging ? "none" : "transform 0.15s ease-out",

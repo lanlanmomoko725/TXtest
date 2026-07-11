@@ -74,19 +74,10 @@ export default function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-10 pt-6 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="mt-10 flex items-center justify-center border-t border-border/60 pt-6 sm:justify-start">
           <p className="text-xs text-muted-foreground">
             &copy; {new Date().getFullYear()} 天象志. 保留所有权利.
           </p>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <Link to="/about" className="hover:text-foreground transition-colors">
-              我们是谁
-            </Link>
-            <span className="text-border">·</span>
-            <Link to="/" className="hover:text-foreground transition-colors">
-              使用条款
-            </Link>
-          </div>
         </div>
       </div>
     </footer>
