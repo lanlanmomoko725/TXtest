@@ -152,8 +152,9 @@ export default function AdminUsers() {
                             size="icon"
                             className="h-8 w-8 text-red-500 hover:text-red-700"
                             onClick={() => {
-                              if (confirm(`确定删除用户 ${u.name || u.email} 吗？`)) {
-                                deleteUser.mutate({ userId: u.id });
+                              if (confirm(`确定注销用户 ${u.name || u.email} 吗？账号将无法登录，历史内容会以匿名身份保留。`)) {
+                                const reason = window.prompt("请输入注销原因（可选）：")?.trim() || undefined;
+                                deleteUser.mutate({ userId: u.id, reason });
                               }
                             }}
                           >

@@ -1,7 +1,8 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import * as cookie from "cookie";
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, isNull, like, or } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware";
 import {
   findUserByEmail,
@@ -16,25 +17,41 @@ import { getSessionCookieOptions } from "./lib/cookies";
 import { Session } from "@contracts/constants";
 import { USERNAME_LENGTH_ERROR, USERNAME_MAX_UNITS, assertValidUsername } from "@contracts/username";
 import { toCurrentUser } from "./lib/user-dto";
-import { sendVerificationEmail } from "./lib/mail";
 import { assertPasswordPolicy } from "./lib/password-policy";
+import { LOGIN_PASSWORD_MAX_LENGTH, PASSWORD_MAX_LENGTH } from "@contracts/password";
 import { getCaptchaClientConfig, verifyAliyunCaptcha } from "./lib/captcha";
 import {
   consumeVerificationCode,
   createVerificationCode,
-  verificationSubject,
-  verificationTemplateLabel,
   verifyEmailCode,
 } from "./lib/verification-code";
 import { allocatePublicId } from "./lib/account-ids";
-import { consumeRateLimit, rateLimitKey } from "./lib/rate-limit";
+import {
+  RateLimitError,
+  consumeRateLimit,
+  getRateLimitCounter,
+  incrementRateLimitCounter,
+  rateLimitKey,
+} from "./lib/rate-limit";
 import { requestIp } from "./lib/request-info";
-import { createSessionTokens, revokeAllUserSessions } from "./lib/sessions";
+import { createSessionTokens } from "./lib/sessions";
 import { encryptIdentity, normalizeEmail, normalizePhone, phoneHash } from "./lib/identity";
 import { sendSmsCode, verifySmsCode } from "./lib/sms";
+import { enqueueVerificationEmail } from "./lib/notifications";
+import {
+  DUMMY_PASSWORD_HASH,
+  LOGIN_FAILURE_WINDOW_MS,
+  LOGIN_IP_ATTEMPT_LIMIT,
+  LOGIN_PAIR_FAILURE_LIMIT,
+  compareLoginPassword,
+  isLoginPasswordAccepted,
+  loginAccountSubject,
+  loginFailureKeys,
+  requiresLoginCaptcha,
+  waitForUniformAuthResponse,
+} from "./lib/auth-security";
+import { requireSingleAffectedRow } from "./lib/db-result";
 
-const LOGIN_LOCK_WINDOW_MS = 30 * 60 * 1000;
-const MAX_LOGIN_FAILURES = 5;
 const ONE_MINUTE_MS = 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -75,35 +92,6 @@ function phoneSubject(phone: string) {
   return `phone:${phoneHash(phone)}`;
 }
 
-async function countRecentLoginFailures(identifier: string) {
-  const since = new Date(Date.now() - LOGIN_LOCK_WINDOW_MS);
-  const rows = await getDb()
-    .select({ count: schema.loginAttempts.id })
-    .from(schema.loginAttempts)
-    .where(and(gte(schema.loginAttempts.attemptedAt, since), eq(schema.loginAttempts.email, identifier)));
-  return rows.length;
-}
-
-async function recordLoginFailure(identifier: string, ip: string, userId?: number) {
-  await getDb().insert(schema.loginAttempts).values({
-    email: identifier,
-    ip,
-    attemptedAt: new Date(),
-  });
-
-  const count = await countRecentLoginFailures(identifier);
-  if (userId && count >= MAX_LOGIN_FAILURES) {
-    await getDb()
-      .update(schema.users)
-      .set({ lockedUntil: new Date(Date.now() + LOGIN_LOCK_WINDOW_MS) })
-      .where(eq(schema.users.id, userId));
-  }
-}
-
-async function clearLoginFailures(identifier: string) {
-  await getDb().delete(schema.loginAttempts).where(eq(schema.loginAttempts.email, identifier));
-}
-
 async function finishLogin(ctx: { req: Request; resHeaders: Headers }, userId: number) {
   await getDb()
     .update(schema.users)
@@ -121,12 +109,17 @@ async function finishLogin(ctx: { req: Request; resHeaders: Headers }, userId: n
   return { success: true, user: toCurrentUser(freshUser) };
 }
 
-async function sendPurposeCode(email: string, purpose: "bind_email" | "reset_password", ip: string) {
-  const code = await createVerificationCode(email, purpose, ip);
-  await sendVerificationEmail(email, code, {
-    subject: verificationSubject(purpose),
-    label: verificationTemplateLabel(purpose),
-  });
+async function queuePurposeCodeSafely(
+  email: string,
+  purpose: "bind_email" | "reset_password",
+  ip: string,
+) {
+  try {
+    const code = await createVerificationCode(email, purpose, ip);
+    await enqueueVerificationEmail({ email, code, purpose });
+  } catch (error) {
+    console.error("[verification-code] Failed to queue generic verification message", error);
+  }
 }
 
 async function rateLimitCaptcha(ip: string, subject: string, purpose: string) {
@@ -215,6 +208,7 @@ export const emailAuthRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const startedAt = Date.now();
       const phone = normalizePhone(input.phone);
       const ip = requestIp(ctx.req.headers);
       const subject = phoneSubject(phone);
@@ -224,12 +218,22 @@ export const emailAuthRouter = createRouter({
 
       const existing = await findUserByPhone(phone);
       if (input.purpose === "register" && !existing) {
-        await sendSmsCode(phone, "register");
-      }
-      if (input.purpose === "login" && existing) {
-        await sendSmsCode(phone, "login");
+        try {
+          await sendSmsCode(phone, "register");
+        } catch (error) {
+          console.error("[sms] Failed to send generic registration code", error);
+        }
+      } else if (input.purpose === "login" && existing) {
+        try {
+          await sendSmsCode(phone, "login");
+        } catch (error) {
+          console.error("[sms] Failed to send generic login code", error);
+        }
+      } else {
+        await bcrypt.compare(`sms:${phoneHash(phone)}`, DUMMY_PASSWORD_HASH);
       }
 
+      await waitForUniformAuthResponse(startedAt);
       return { success: true, message: "如果该手机号可用，验证码将发送到该手机号。" };
     }),
 
@@ -241,6 +245,7 @@ export const emailAuthRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const startedAt = Date.now();
       const email = normalizeEmail(input.email);
       const ip = requestIp(ctx.req.headers);
       await rateLimitCaptcha(ip, email, "email-bind");
@@ -249,9 +254,12 @@ export const emailAuthRouter = createRouter({
 
       const existing = await findUserByEmail(email);
       if (!existing) {
-        await sendPurposeCode(email, "bind_email", ip);
+        await queuePurposeCodeSafely(email, "bind_email", ip);
+      } else {
+        await bcrypt.compare(`email:${email}`, DUMMY_PASSWORD_HASH);
       }
 
+      await waitForUniformAuthResponse(startedAt);
       return { success: true, message: "如果该邮箱可以绑定，验证码将发送到该邮箱。" };
     }),
 
@@ -264,6 +272,7 @@ export const emailAuthRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const startedAt = Date.now();
       const email = normalizeEmail(input.email);
       const ip = requestIp(ctx.req.headers);
       await rateLimitCaptcha(ip, email, "email-bind");
@@ -271,8 +280,11 @@ export const emailAuthRouter = createRouter({
       await rateLimitEmailCodeSend(ip, email, "bind");
       const existing = await findUserByEmail(email);
       if (!existing) {
-        await sendPurposeCode(email, "bind_email", ip);
+        await queuePurposeCodeSafely(email, "bind_email", ip);
+      } else {
+        await bcrypt.compare(`email:${email}`, DUMMY_PASSWORD_HASH);
       }
+      await waitForUniformAuthResponse(startedAt);
       return { success: true, message: "如果该邮箱可以绑定，验证码将发送到该邮箱。" };
     }),
 
@@ -284,8 +296,8 @@ export const emailAuthRouter = createRouter({
         email: z.string().email("请输入有效邮箱地址").optional().or(z.literal("")),
         emailCode: z.string().optional(),
         name: z.string().min(1, "请输入用户名").max(USERNAME_MAX_UNITS, USERNAME_LENGTH_ERROR),
-        password: z.string().min(8),
-        passwordConfirm: z.string().min(8),
+        password: z.string().min(8).max(PASSWORD_MAX_LENGTH),
+        passwordConfirm: z.string().min(8).max(PASSWORD_MAX_LENGTH),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -306,27 +318,45 @@ export const emailAuthRouter = createRouter({
       }
       assertPasswordPolicy(input.password);
       assertValidUsername(input.name);
-      await ensureNameAvailable(input.name.trim());
-
-      const existingPhone = await findUserByPhone(phone);
-      if (existingPhone) {
-        throw new Error("该手机号已经注册，请直接登录。");
-      }
       if (email) {
-        const existingEmail = await findUserByEmail(email);
-        if (existingEmail) {
-          throw new Error("该邮箱已经绑定其他账号。");
-        }
         if (!input.emailCode || input.emailCode.length !== 6) {
           throw new Error("请输入邮箱验证码，或留空邮箱稍后再绑定。");
         }
       }
 
-      await verifySmsCode(phone, input.smsCode);
+      await verifySmsCode(phone, input.smsCode, "register");
       const emailCodeRecord = email ? await verifyEmailCode(email, "bind_email", input.emailCode ?? "") : null;
+      await ensureNameAvailable(input.name.trim());
+      const existingPhone = await findUserByPhone(phone);
+      if (existingPhone) throw new Error("该手机号已经注册，请直接登录。");
+      if (email) {
+        const existingEmail = await findUserByEmail(email);
+        if (existingEmail) throw new Error("该邮箱已经绑定其他账号。");
+      }
       const hashedPassword = await bcrypt.hash(input.password, 10);
 
       const userId = await getDb().transaction(async (tx) => {
+        const [phoneConflict] = await tx
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(and(eq(schema.users.phoneHash, phoneHash(phone)), isNull(schema.users.deletedAt)))
+          .limit(1);
+        if (phoneConflict) throw new Error("该手机号已经注册，请直接登录。");
+        if (email) {
+          const [emailConflict] = await tx
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(and(eq(schema.users.email, email), isNull(schema.users.deletedAt)))
+            .limit(1);
+          if (emailConflict) throw new Error("该邮箱已经绑定其他账号。");
+        }
+        const [nameConflict] = await tx
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(and(eq(schema.users.name, input.name.trim()), isNull(schema.users.deletedAt)))
+          .limit(1);
+        if (nameConflict) throw new Error("该用户名已被使用，请换一个。");
+
         const [allowlistRecord] = email
           ? await tx
               .select()
@@ -367,10 +397,7 @@ export const emailAuthRouter = createRouter({
         }
 
         if (emailCodeRecord) {
-          await tx
-            .update(schema.verificationCodes)
-            .set({ consumedAt: new Date() })
-            .where(eq(schema.verificationCodes.id, emailCodeRecord.id));
+          await consumeVerificationCode(emailCodeRecord.id, tx);
         }
 
         return id;
@@ -383,48 +410,85 @@ export const emailAuthRouter = createRouter({
   login: publicQuery
     .input(
       z.object({
-        identifier: z.string().min(1, "请输入邮箱或用户名"),
-        password: z.string().min(1, "请输入密码"),
+        identifier: z.string().min(1, "请输入邮箱或用户名").max(320, "账号输入过长。"),
+        password: z.string().min(1, "请输入密码").max(LOGIN_PASSWORD_MAX_LENGTH, "密码输入过长。"),
+        captchaVerifyParam: z.string().min(1).max(4096).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const identifier = input.identifier.trim();
-      const loginKey = identifier.includes("@") ? normalizeEmail(identifier) : identifier;
+      let loginKey = identifier.includes("@") ? normalizeEmail(identifier) : identifier;
+      if (!identifier.includes("@")) {
+        try {
+          loginKey = `phone:${phoneHash(identifier)}`;
+        } catch {
+          // Non-phone identifiers retain their exact username form.
+        }
+      }
       const ip = requestIp(ctx.req.headers);
+      const subjectHash = loginAccountSubject(loginKey);
+      const failureKeys = loginFailureKeys(subjectHash, ip);
 
       await consumeRateLimit({
         key: rateLimitKey("login", "ip", ip),
-        limit: 40,
-        windowMs: LOGIN_LOCK_WINDOW_MS,
+        limit: LOGIN_IP_ATTEMPT_LIMIT,
+        windowMs: LOGIN_FAILURE_WINDOW_MS,
         event: "login_ip_rate_limited",
-        subject: loginKey,
+        subject: subjectHash,
         ip,
       });
 
-      const failures = await countRecentLoginFailures(loginKey);
-      if (failures >= MAX_LOGIN_FAILURES) {
-        throw new Error("登录失败次数过多，请 30 分钟后再试。");
+      const pairFailures = await getRateLimitCounter(failureKeys.pair);
+      if (pairFailures && pairFailures.count >= LOGIN_PAIR_FAILURE_LIMIT) {
+        throw new RateLimitError(
+          Math.max(1, Math.ceil((pairFailures.resetAt.getTime() - Date.now()) / 1000)),
+        );
       }
 
-      const user = await findUserByLoginIdentifier(identifier);
-      if (user?.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      const accountFailures = await getRateLimitCounter(failureKeys.account);
+      if (requiresLoginCaptcha(accountFailures?.count ?? 0)) {
+        if (!input.captchaVerifyParam) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "请完成人机验证后继续登录。",
+          });
+        }
+        await verifyAliyunCaptcha(input.captchaVerifyParam);
+      }
+
+      let user: Awaited<ReturnType<typeof findUserByLoginIdentifier>> = null;
+      try {
+        user = await findUserByLoginIdentifier(identifier);
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes("用户名不唯一")) throw error;
+      }
+
+      const valid = await compareLoginPassword(input.password, user?.password);
+      if (!user || !isLoginPasswordAccepted(user.password, valid)) {
+        await incrementRateLimitCounter({ key: failureKeys.account, windowMs: LOGIN_FAILURE_WINDOW_MS });
+        const pairBucket = await incrementRateLimitCounter({
+          key: failureKeys.pair,
+          windowMs: LOGIN_FAILURE_WINDOW_MS,
+        });
+        if (pairBucket.count > LOGIN_PAIR_FAILURE_LIMIT) {
+          throw new RateLimitError(
+            Math.max(1, Math.ceil((pairBucket.resetAt.getTime() - Date.now()) / 1000)),
+          );
+        }
+        throw new Error("账号或密码不正确。");
+      }
+
+      if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
         throw new Error(remainingLockMessage(user.lockedUntil));
       }
 
-      if (!user?.password) {
-        await recordLoginFailure(loginKey, ip);
-        throw new Error("账号或密码不正确。");
-      }
-
-      const valid = await bcrypt.compare(input.password, user.password);
-      if (!valid) {
-        await recordLoginFailure(loginKey, ip, user.id);
-        throw new Error("账号或密码不正确。");
-      }
-
-      await clearLoginFailures(loginKey);
-      if (user.email) await clearLoginFailures(normalizeEmail(user.email));
-      if (user.phoneHash) await clearLoginFailures(`phone:${user.phoneHash}`);
+      const pairPrefix = rateLimitKey("login-failure", "pair", subjectHash, "ip");
+      await getDb()
+        .delete(schema.rateLimitBuckets)
+        .where(or(
+          eq(schema.rateLimitBuckets.key, failureKeys.account),
+          like(schema.rateLimitBuckets.key, `${pairPrefix}:%`),
+        ));
       return finishLogin(ctx, user.id);
     }),
 
@@ -443,7 +507,7 @@ export const emailAuthRouter = createRouter({
       await consumeRateLimit({
         key: rateLimitKey("login-sms", "ip", ip),
         limit: 40,
-        windowMs: LOGIN_LOCK_WINDOW_MS,
+        windowMs: LOGIN_FAILURE_WINDOW_MS,
         event: "login_sms_ip_rate_limited",
         subject: loginKey,
         ip,
@@ -457,8 +521,7 @@ export const emailAuthRouter = createRouter({
         throw new Error(remainingLockMessage(user.lockedUntil));
       }
 
-      await verifySmsCode(phone, input.smsCode);
-      await clearLoginFailures(loginKey);
+      await verifySmsCode(phone, input.smsCode, "login");
       return finishLogin(ctx, user.id);
     }),
 
@@ -470,17 +533,21 @@ export const emailAuthRouter = createRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const startedAt = Date.now();
       const email = normalizeEmail(input.email);
       const ip = requestIp(ctx.req.headers);
       await rateLimitCaptcha(ip, email, "reset");
       await verifyAliyunCaptcha(input.captchaVerifyParam);
+      await rateLimitEmailCodeSend(ip, email, "reset");
 
       const existing = await findUserByEmail(email);
       if (existing?.emailVerified) {
-        await rateLimitEmailCodeSend(ip, email, "reset");
-        await sendPurposeCode(email, "reset_password", ip);
+        await queuePurposeCodeSafely(email, "reset_password", ip);
+      } else {
+        await bcrypt.compare(`reset:${email}`, DUMMY_PASSWORD_HASH);
       }
 
+      await waitForUniformAuthResponse(startedAt);
       return { success: true, message: "如果该邮箱存在，验证码将发送到该邮箱。" };
     }),
 
@@ -489,36 +556,63 @@ export const emailAuthRouter = createRouter({
       z.object({
         email: z.string().email("请输入有效邮箱地址"),
         code: z.string().length(6, "请输入 6 位验证码"),
-        password: z.string().min(8),
-        passwordConfirm: z.string().min(8),
+        password: z.string().min(8).max(PASSWORD_MAX_LENGTH),
+        passwordConfirm: z.string().min(8).max(PASSWORD_MAX_LENGTH),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const email = normalizeEmail(input.email);
       if (input.password !== input.passwordConfirm) {
         throw new Error("两次输入的密码不一致。");
       }
       assertPasswordPolicy(input.password);
 
-      const user = await findUserByEmail(email);
-      if (!user?.password || !user.emailVerified) {
-        throw new Error("验证码无效或已过期。");
-      }
-
       const codeRecord = await verifyEmailCode(email, "reset_password", input.code);
+      const user = await findUserByEmail(email);
+      if (!user?.password || !user.emailVerified) throw new Error("验证码无效或已过期。");
       const hashedPassword = await bcrypt.hash(input.password, 10);
-      await getDb()
-        .update(schema.users)
-        .set({
-          password: hashedPassword,
-          sessionVersion: user.sessionVersion + 1,
-          lockedUntil: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.users.id, user.id));
-      await consumeVerificationCode(codeRecord.id);
-      await clearLoginFailures(email);
-      await revokeAllUserSessions(user.id);
+      const ip = requestIp(ctx.req.headers);
+      const subjectHash = loginAccountSubject(email);
+      const failureKeys = loginFailureKeys(subjectHash, ip);
+      const pairPrefix = rateLimitKey("login-failure", "pair", subjectHash, "ip");
+      await getDb().transaction(async (tx) => {
+        const [lockedUser] = await tx
+          .select({
+            id: schema.users.id,
+            sessionVersion: schema.users.sessionVersion,
+            emailVerified: schema.users.emailVerified,
+            deletedAt: schema.users.deletedAt,
+          })
+          .from(schema.users)
+          .where(eq(schema.users.id, user.id))
+          .for("update");
+        if (!lockedUser || lockedUser.deletedAt || !lockedUser.emailVerified) {
+          throw new Error("验证码无效或已过期。");
+        }
+
+        await consumeVerificationCode(codeRecord.id, tx);
+        const updateResult = await tx
+          .update(schema.users)
+          .set({
+            password: hashedPassword,
+            sessionVersion: lockedUser.sessionVersion + 1,
+            lockedUntil: null,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(schema.users.id, lockedUser.id), isNull(schema.users.deletedAt)));
+        requireSingleAffectedRow(updateResult, "账号不存在或已注销。");
+        await tx
+          .update(schema.sessions)
+          .set({ revokedAt: new Date() })
+          .where(and(eq(schema.sessions.userId, lockedUser.id), isNull(schema.sessions.revokedAt)));
+        await tx.delete(schema.loginAttempts).where(eq(schema.loginAttempts.email, email));
+        await tx
+          .delete(schema.rateLimitBuckets)
+          .where(or(
+            eq(schema.rateLimitBuckets.key, failureKeys.account),
+            like(schema.rateLimitBuckets.key, `${pairPrefix}:%`),
+          ));
+      });
 
       return { success: true };
     }),

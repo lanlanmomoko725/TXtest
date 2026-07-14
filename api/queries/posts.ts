@@ -5,6 +5,7 @@ import { getDb } from "./connection";
 import { findPublicUsersByIds } from "./users";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { filterSafeUploadPaths } from "@contracts/upload-path";
+import { assertUsableUploadPaths } from "../lib/upload-ownership";
 
 // Extract image URLs from HTML content (for article mode images)
 function extractImagesFromHtml(html: string): string[] {
@@ -245,6 +246,11 @@ export async function createPost(data: {
     : contentImages.length > 0 ? contentImages : null;
   const coverCandidates = data.isArticle ? safeContentImages : (mergedImages ?? []);
   const coverImage = resolveCoverImage(data.coverImage, coverCandidates);
+  await assertUsableUploadPaths({
+    paths: coverCandidates,
+    userId: data.authorId,
+    purpose: "content",
+  });
 
   // Extract tags from content and auto-detect sky explanation
   const tags = extractTagsFromHtml(content);
@@ -284,7 +290,8 @@ export async function updatePost(
     coverImage: string;
     isArticle: boolean;
     skyGalleryCategory?: string;
-  }>
+  }>,
+  actorUserId: number,
 ) {
   const existingPost = await getDb().query.posts.findFirst({
     where: eq(schema.posts.id, id),
@@ -294,6 +301,7 @@ export async function updatePost(
   const updateData: Partial<InsertPost> = {};
   let nextContent = sanitizeHtml(existingPost.content);
   let nextImages: string[] | null = normalizeImages(existingPost.images);
+  const legacyPaths = getPostImageCandidates(nextContent, nextImages);
   const nextIsArticle = data.isArticle ?? existingPost.isArticle;
   if (data.content !== undefined) {
     const content = sanitizeHtml(data.content);
@@ -324,9 +332,16 @@ export async function updatePost(
   if (data.isArticle !== undefined) updateData.isArticle = data.isArticle;
   if (data.skyGalleryCategory !== undefined) updateData.skyGalleryCategory = data.skyGalleryCategory || null;
   if (data.coverImage !== undefined || data.content !== undefined || data.images !== undefined || data.isArticle !== undefined) {
+    const nextCandidates = getPostImageCandidates(nextContent, nextImages);
+    await assertUsableUploadPaths({
+      paths: nextCandidates,
+      userId: actorUserId,
+      purpose: "content",
+      legacyPaths,
+    });
     updateData.coverImage = resolveCoverImage(
       data.coverImage,
-      getPostImageCandidates(nextContent, nextImages),
+      nextCandidates,
       existingPost.coverImage,
     );
   }

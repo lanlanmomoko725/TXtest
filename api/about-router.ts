@@ -13,7 +13,7 @@ export const aboutRouter = createRouter({
         content: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      return upsertAboutUs(input);
+    .mutation(async ({ ctx, input }) => {
+      return upsertAboutUs(input, ctx.user.id);
     }),
 });

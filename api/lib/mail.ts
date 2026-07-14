@@ -38,3 +38,13 @@ export async function sendVerificationEmail(to: string, code: string, options?: 
     `,
   });
 }
+
+export async function sendSecurityEmail(to: string, subject: string, text: string) {
+  const transporter = createTransporter();
+  await transporter.sendMail({
+    from: env.smtpFrom || env.smtpUser,
+    to,
+    subject,
+    text,
+  });
+}

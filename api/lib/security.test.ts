@@ -9,6 +9,7 @@ import { toAdminUser, toCurrentUser, toPublicUser } from "./user-dto";
 import { validatePasswordPolicy } from "./password-policy";
 import { isCommentBlocked } from "./comment-filter";
 import { buildCommentThreads } from "../queries/comments";
+import { requestIp } from "./request-info";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -30,6 +31,9 @@ const user = {
   phoneVerified: false,
   sessionVersion: 1,
   lockedUntil: null,
+  deletedAt: null,
+  deletedBy: null,
+  deletionReason: null,
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-02T00:00:00Z"),
   lastSignInAt: new Date("2026-01-03T00:00:00Z"),
@@ -56,12 +60,36 @@ describe("user DTOs", () => {
 });
 
 describe("password policy", () => {
-  it("requires at least 8 characters with number and upper/lowercase letters", () => {
-    expect(validatePasswordPolicy("short1A")).toBeTruthy();
+  it("requires 8-64 characters with number and upper/lowercase letters", () => {
+    expect(validatePasswordPolicy("Short1A")).toBeTruthy();
+    expect(validatePasswordPolicy("Abcdef1!")).toBeNull();
+    expect(validatePasswordPolicy(`Aa1${"x".repeat(61)}`)).toBeNull();
+    expect(validatePasswordPolicy(`Aa1${"x".repeat(62)}`)).toBeTruthy();
     expect(validatePasswordPolicy("lowercase1")).toBeTruthy();
     expect(validatePasswordPolicy("UPPERCASE1")).toBeTruthy();
     expect(validatePasswordPolicy("NoNumberHere")).toBeTruthy();
     expect(validatePasswordPolicy("Strong123")).toBeNull();
+  });
+
+  it("accepts at most 72 UTF-8 bytes", () => {
+    expect(validatePasswordPolicy(`Aa1${"é".repeat(34)}b`)).toBeNull();
+    expect(validatePasswordPolicy(`Aa1${"é".repeat(34)}bc`)).toBeTruthy();
+  });
+});
+
+describe("request IP trust boundary", () => {
+  it("prefers the proxy-controlled real IP over forwarded client values", () => {
+    const headers = new Headers({
+      "x-real-ip": "203.0.113.9",
+      "x-forwarded-for": "198.51.100.2, 203.0.113.9",
+    });
+
+    expect(requestIp(headers)).toBe("203.0.113.9");
+  });
+
+  it("uses the last valid forwarded address and rejects malformed values", () => {
+    expect(requestIp(new Headers({ "x-forwarded-for": "attacker, 2001:db8::1" }))).toBe("2001:db8::1");
+    expect(requestIp(new Headers({ "x-forwarded-for": "attacker" }))).toBe("unknown");
   });
 });
 

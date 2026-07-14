@@ -15,6 +15,7 @@ import { detectImageFormat, extensionForFormat, MAX_UPLOAD_BYTES } from "./lib/u
 import type { ImageFormat } from "./lib/upload-validation";
 import { consumeRateLimit, rateLimitKey } from "./lib/rate-limit";
 import { requestIp } from "./lib/request-info";
+import { registerUploadedFile } from "./lib/upload-ownership";
 
 const execFileAsync = promisify(execFile);
 const BODY_LIMIT_BYTES = 15 * 1024 * 1024;
@@ -207,7 +208,21 @@ app.post("/api/upload", async (c) => {
     const fileStats = await stat(filePath);
     if (fileStats.size === 0 || fileStats.size !== writeBuffer.length) {
       console.error(`[upload] File size mismatch: expected ${writeBuffer.length}, got ${fileStats.size}`);
+      await unlink(filePath).catch(() => {});
       return attachHeaders(c.json({ error: "File save failed. Please try again." }, 500), authHeaders);
+    }
+
+    try {
+      await registerUploadedFile({
+        path: `/uploads/${filename}`,
+        uploaderUserId: user.id,
+        purpose,
+        sizeBytes: fileStats.size,
+        format: safeExt,
+      });
+    } catch (error) {
+      await unlink(filePath).catch(() => {});
+      throw error;
     }
 
     return attachHeaders(c.json({ success: true, url: `/uploads/${filename}` }), authHeaders);
@@ -257,8 +272,10 @@ if (env.isProduction) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
   const { startExpiredSessionCleanup } = await import("./lib/sessions");
+  const { startNotificationOutboxWorker } = await import("./lib/notifications");
   serveStaticFiles(app);
   startExpiredSessionCleanup();
+  startNotificationOutboxWorker();
 
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port }, () => {

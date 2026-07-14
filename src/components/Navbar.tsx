@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   UserCheck,
   MessageCircleMore,
+  KeyRound,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -272,6 +273,13 @@ export default function Navbar() {
               >
                 <MessageCircleMore className="h-4 w-4 mr-2" />
                 评论审核
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate("/admin/recovery-reviews")}
+                className="cursor-pointer focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                恢复审核
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => navigate("/admin/audit")}

@@ -98,6 +98,50 @@ curl -i http://127.0.0.1/
 
 This version adds `sessions`, `rate_limit_buckets`, `security_events`, encrypted phone fields, and the `bind_email` verification purpose. Run `drizzle-kit push` after deploying the code.
 
+## Staged Security Schema Update
+
+The upload ownership, account recovery, soft deletion, and foreign-key changes must not be deployed with a blind `drizzle-kit push` against an existing production database. Use the reviewed stages below.
+
+1. Back up MySQL and the upload directory:
+
+```bash
+docker compose exec -T db sh -c 'mysqldump -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' > skyweb-security-backup.sql
+tar -czf skyweb-uploads-backup.tar.gz uploads
+```
+
+2. Run the read-only preflight report and inspect every non-zero count:
+
+```bash
+docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < scripts/security-preflight-audit.sql
+```
+
+3. Apply additive tables and columns only. This script is idempotent and does not add foreign keys:
+
+```bash
+docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < scripts/security-expand.sql
+```
+
+4. Deploy the application with `UPLOAD_OWNERSHIP_MODE=log` and `ACCOUNT_RECOVERY_ENABLED=false`. Review `upload_ownership_violation` events in `/admin/audit`.
+
+5. Run the full report. Review `scripts/security-integrity-cleanup.sql` and its archived-row behavior before applying it. Run the report again; every count must be zero:
+
+```bash
+docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < scripts/security-integrity-audit.sql
+docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < scripts/security-integrity-cleanup.sql
+docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < scripts/security-integrity-audit.sql
+```
+
+6. Test on a recent production copy and record lock time. Then add the idempotent foreign keys:
+
+```bash
+docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < scripts/security-add-foreign-keys.sql
+docker compose exec app npx drizzle-kit push --strict --verbose
+```
+
+The final Drizzle command is only a reconciliation check. Read every displayed statement and stop if it proposes destructive or unexpected changes.
+
+7. After seven days of clean ownership logs, set `UPLOAD_OWNERSHIP_MODE=enforce`. Enable `ACCOUNT_RECOVERY_ENABLED=true` only after `PUBLIC_APP_URL`, SMTP, the SMS notification webhook, and two different review accounts are ready. Restart the app after environment changes.
+
 ## HTTPS
 
 Production should use HTTPS. A common setup is to terminate TLS in Nginx or in the cloud provider load balancer, then redirect HTTP to HTTPS and enable HSTS.

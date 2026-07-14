@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ArrowLeft } from "lucide-react";
+import { LOGIN_PASSWORD_MAX_LENGTH, PASSWORD_MAX_LENGTH, validatePasswordPolicy } from "@contracts/password";
 
 function normalizePhoneInput(value: string) {
   return value.replace(/[^\d]/g, "").slice(0, 11);
@@ -25,6 +26,7 @@ export default function Login() {
   const [smsCode, setSmsCode] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginMessage, setLoginMessage] = useState("");
+  const [passwordCaptchaRequired, setPasswordCaptchaRequired] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetCode, setResetCode] = useState("");
@@ -41,8 +43,12 @@ export default function Login() {
   };
 
   const passwordLogin = trpc.emailAuth.login.useMutation({
-    onSuccess: onLoginSuccess,
+    onSuccess: async () => {
+      setPasswordCaptchaRequired(false);
+      await onLoginSuccess();
+    },
     onError: (err) => {
+      if (err.data?.code === "PRECONDITION_FAILED") setPasswordCaptchaRequired(true);
       setLoginError(err.message || "登录失败");
       setLoginMessage("");
     },
@@ -97,7 +103,19 @@ export default function Login() {
     setLoginError("");
     setLoginMessage("");
     if (!identifier.trim() || !password.trim()) return;
+    if (passwordCaptchaRequired) {
+      setLoginError("请完成人机验证后继续登录。");
+      return;
+    }
     passwordLogin.mutate({ identifier: identifier.trim(), password });
+  };
+
+  const handleCaptchaPasswordLogin = async (captchaVerifyParam: string) => {
+    setLoginError("");
+    setLoginMessage("");
+    if (!identifier.trim() || !password) return false;
+    await passwordLogin.mutateAsync({ identifier: identifier.trim(), password, captchaVerifyParam });
+    return true;
   };
 
   const handleSendSmsCode = async (captchaVerifyParam: string) => {
@@ -133,6 +151,15 @@ export default function Login() {
     e.preventDefault();
     setResetError("");
     setResetMessage("");
+    const passwordPolicyError = validatePasswordPolicy(resetPassword);
+    if (passwordPolicyError) {
+      setResetError(passwordPolicyError);
+      return;
+    }
+    if (resetPassword !== resetPasswordConfirm) {
+      setResetError("两次输入的密码不一致。");
+      return;
+    }
     resetPasswordMutation.mutate({
       email: resetEmail.trim(),
       code: resetCode,
@@ -218,8 +245,12 @@ export default function Login() {
                     autoComplete="username"
                     placeholder="请输入邮箱或用户名"
                     value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    onChange={(e) => {
+                      setIdentifier(e.target.value);
+                      setPasswordCaptchaRequired(false);
+                    }}
                     className="mt-1.5 bg-background"
+                    maxLength={320}
                     spellCheck={false}
                   />
                 </div>
@@ -232,18 +263,29 @@ export default function Login() {
                     placeholder="请输入密码"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    maxLength={LOGIN_PASSWORD_MAX_LENGTH}
                     className="mt-1.5 bg-background"
                   />
                 </div>
                 {loginError ? <p className="text-sm text-destructive animate-shake">{loginError}</p> : null}
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
-                  disabled={passwordLogin.isPending}
-                >
-                  {passwordLogin.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  密码登录
-                </Button>
+                {passwordCaptchaRequired ? (
+                  <AliyunCaptchaButton
+                    config={captchaConfig.data}
+                    disabled={passwordLogin.isPending || !identifier.trim() || !password}
+                    onVerify={handleCaptchaPasswordLogin}
+                  >
+                    {passwordLogin.isPending ? "登录中..." : "验证并登录"}
+                  </AliyunCaptchaButton>
+                ) : (
+                  <Button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-soft transition-all duration-200 hover:shadow-card-hover active:scale-[0.98]"
+                    disabled={passwordLogin.isPending}
+                  >
+                    {passwordLogin.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    密码登录
+                  </Button>
+                )}
               </form>
             </TabsContent>
           </Tabs>
@@ -255,6 +297,9 @@ export default function Login() {
             <button type="button" className="text-muted-foreground hover:text-primary" onClick={() => setResetOpen(true)}>
               忘记密码？
             </button>
+          </div>
+          <div className="mt-3 text-center text-xs text-muted-foreground">
+            旧联系方式和密码均不可用？<Link to="/account-recovery" className="ml-1 text-primary hover:underline">账号恢复</Link>
           </div>
         </CardContent>
       </Card>
@@ -291,11 +336,11 @@ export default function Login() {
             </div>
             <div>
               <Label htmlFor="reset-password">新密码</Label>
-              <Input id="reset-password" type="password" autoComplete="new-password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} required />
+              <Input id="reset-password" type="password" autoComplete="new-password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)} maxLength={PASSWORD_MAX_LENGTH} required />
             </div>
             <div>
               <Label htmlFor="reset-password-confirm">确认新密码</Label>
-              <Input id="reset-password-confirm" type="password" autoComplete="new-password" value={resetPasswordConfirm} onChange={(e) => setResetPasswordConfirm(e.target.value)} required />
+              <Input id="reset-password-confirm" type="password" autoComplete="new-password" value={resetPasswordConfirm} onChange={(e) => setResetPasswordConfirm(e.target.value)} maxLength={PASSWORD_MAX_LENGTH} required />
             </div>
             {resetMessage ? <p className="text-sm text-emerald-600">{resetMessage}</p> : null}
             {resetError ? <p className="text-sm text-destructive">{resetError}</p> : null}

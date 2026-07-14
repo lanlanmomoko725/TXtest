@@ -4,6 +4,7 @@ import type { InsertActivity } from "@db/schema";
 import { sanitizeHtml } from "@contracts/html-sanitizer";
 import { filterSafeUploadPaths } from "@contracts/upload-path";
 import { getDb } from "./connection";
+import { assertUsableUploadPaths } from "../lib/upload-ownership";
 
 function extractImagesFromHtml(html: string): string[] {
   const regex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
@@ -106,6 +107,11 @@ export async function createActivity(data: {
   const content = sanitizeHtml(data.content);
   const images = activityImages(content);
   const coverImage = resolveCoverImage(data.coverImage, images);
+  await assertUsableUploadPaths({
+    paths: images,
+    userId: data.createdBy,
+    purpose: "content",
+  });
   const insertData: InsertActivity = {
     title: data.title.trim(),
     content,

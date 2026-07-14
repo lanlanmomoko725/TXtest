@@ -36,6 +36,10 @@ export function phoneHash(phone: string) {
   return createHmac("sha256", hmacKey()).update(`phone:${normalized}`).digest("hex");
 }
 
+export function privateValueHash(namespace: string, value: string) {
+  return createHmac("sha256", hmacKey()).update(`${namespace}:${value}`).digest("hex");
+}
+
 export function encryptIdentity(value: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv(CIPHER, identityKey(), iv);

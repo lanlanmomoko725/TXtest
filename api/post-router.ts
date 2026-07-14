@@ -155,7 +155,7 @@ export const postRouter = createRouter({
         throw new Error("Not authorized");
       }
       const { id, ...data } = input;
-      return updatePost(id, data);
+      return updatePost(id, data, ctx.user.id);
     }),
 
   delete: l99Query

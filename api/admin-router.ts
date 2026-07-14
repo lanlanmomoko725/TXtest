@@ -7,6 +7,8 @@ import { getDb } from "./queries/connection";
 import * as schema from "@db/schema";
 import { listPendingProfileChangeRequests, reviewProfileChangeRequest } from "./lib/profile-changes";
 import { listPendingComments, reviewComment } from "./queries/comments";
+import { finalReviewRecovery, initialReviewRecovery, listRecoveryRequestsForReview } from "./lib/account-recovery";
+import { env } from "./lib/env";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -76,6 +78,7 @@ export const adminRouter = createRouter({
       .input(
         z.object({
           userId: z.number(),
+          reason: z.string().trim().max(255).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -91,14 +94,14 @@ export const adminRouter = createRouter({
           throw new Error("不能删除超级管理员。");
         }
 
-        await deleteUser(input.userId);
+        await deleteUser(input.userId, ctx.user.id, input.reason);
 
         await createAuditLog({
           userId: ctx.user.id,
           action: "delete_user",
           targetType: "user",
           targetId: input.userId,
-          details: { email: target.email, name: target.name },
+          details: { email: target.email, name: target.name, reason: input.reason },
         });
 
         return { success: true };
@@ -244,6 +247,57 @@ export const adminRouter = createRouter({
           },
         });
 
+        return { success: true };
+      }),
+  }),
+
+  accountRecovery: createRouter({
+    pending: adminQuery.query(() => listRecoveryRequestsForReview()),
+    initialReview: adminQuery
+      .input(z.object({
+        requestId: z.number().int().positive(),
+        approve: z.boolean(),
+        reason: z.string().trim().max(255).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!input.approve && !input.reason) throw new Error("拒绝申请时必须填写原因。");
+        await initialReviewRecovery({
+          requestId: input.requestId,
+          reviewerId: ctx.user.id,
+          approve: input.approve,
+          reason: input.reason,
+        });
+        await createAuditLog({
+          userId: ctx.user.id,
+          action: input.approve ? "approve_recovery_initial" : "reject_recovery_initial",
+          targetType: "account_recovery",
+          targetId: input.requestId,
+          details: { reason: input.reason },
+        });
+        return { success: true };
+      }),
+    finalReview: superAdminQuery
+      .input(z.object({
+        requestId: z.number().int().positive(),
+        approve: z.boolean(),
+        reason: z.string().trim().max(255).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!input.approve && !input.reason) throw new Error("拒绝申请时必须填写原因。");
+        await finalReviewRecovery({
+          requestId: input.requestId,
+          reviewerId: ctx.user.id,
+          approve: input.approve,
+          reason: input.reason,
+          appUrl: env.publicAppUrl || new URL(ctx.req.url).origin,
+        });
+        await createAuditLog({
+          userId: ctx.user.id,
+          action: input.approve ? "approve_recovery_final" : "reject_recovery_final",
+          targetType: "account_recovery",
+          targetId: input.requestId,
+          details: { reason: input.reason },
+        });
         return { success: true };
       }),
   }),

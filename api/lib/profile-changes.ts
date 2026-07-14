@@ -5,6 +5,7 @@ import * as schema from "@db/schema";
 import type { User } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { findPublicUsersByIds, findUserById, findUsersByName, updateUser } from "../queries/users";
+import { assertUsableUploadPaths } from "./upload-ownership";
 
 export type ProfileChangeType = "name" | "avatar";
 
@@ -83,6 +84,12 @@ export async function validateProfileChangeRequest(user: User, type: ProfileChan
     if (!isSafeAvatarUploadPath(nextValue)) {
       throw new Error("头像路径无效。");
     }
+    await assertUsableUploadPaths({
+      paths: [nextValue],
+      userId: user.id,
+      purpose: "avatar",
+      legacyPaths: [user.avatar],
+    });
   }
 
   await ensureNoPendingRequest(user.id, type);
@@ -237,6 +244,12 @@ export async function reviewProfileChangeRequest(options: {
     if (!isSafeAvatarUploadPath(request.value)) {
       throw new Error("头像路径无效。");
     }
+    await assertUsableUploadPaths({
+      paths: [request.value],
+      userId: user.id,
+      purpose: "avatar",
+      legacyPaths: [user.avatar],
+    });
     await updateUser(user.id, { avatar: request.value });
   }
 

@@ -133,12 +133,40 @@ export async function rotateRefreshSession(params: {
   jti?: string;
   headers: Headers;
 }) {
-  const valid = await verifyRefreshSession({ userId: params.userId, jti: params.jti });
-  if (!valid) return null;
-  await revokeRefreshSession(params.jti);
-  return createSessionTokens({
-    userId: params.userId,
-    sessionVersion: params.sessionVersion,
-    headers: params.headers,
+  if (!params.jti) return null;
+
+  const now = new Date();
+  const currentJti = params.jti;
+  return getDb().transaction(async (tx) => {
+    const consumeResult = await tx
+      .update(schema.sessions)
+      .set({ revokedAt: now, lastUsedAt: now })
+      .where(
+        and(
+          eq(schema.sessions.userId, params.userId),
+          eq(schema.sessions.tokenHash, hashJti(currentJti)),
+          isNull(schema.sessions.revokedAt),
+          gt(schema.sessions.expiresAt, now),
+        ),
+      );
+
+    if (getAffectedRows(consumeResult) !== 1) return null;
+
+    const nextJti = newRefreshJti();
+    await tx.insert(schema.sessions).values({
+      userId: params.userId,
+      tokenHash: hashJti(nextJti),
+      ip: requestIp(params.headers),
+      userAgent: requestUserAgent(params.headers),
+      createdAt: now,
+      lastUsedAt: now,
+      expiresAt: new Date(now.getTime() + Session.refreshMaxAgeMs),
+    });
+
+    const [accessToken, refreshToken] = await Promise.all([
+      signAccessToken(params.userId, params.sessionVersion),
+      signRefreshToken(params.userId, params.sessionVersion, nextJti),
+    ]);
+    return { accessToken, refreshToken, refreshJti: nextJti };
   });
 }

@@ -1,4 +1,4 @@
-import { count, eq, inArray, or } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, or } from "drizzle-orm";
 import * as schema from "@db/schema";
 
 import { getDb } from "./connection";
@@ -11,7 +11,7 @@ export async function findUserById(id: number) {
   const rows = await getDb()
     .select()
     .from(schema.users)
-    .where(eq(schema.users.id, id))
+    .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)))
     .limit(1);
   return rows.at(0);
 }
@@ -20,7 +20,7 @@ export async function findUserByEmail(email: string) {
   const rows = await getDb()
     .select()
     .from(schema.users)
-    .where(eq(schema.users.email, normalizeEmail(email)))
+    .where(and(eq(schema.users.email, normalizeEmail(email)), isNull(schema.users.deletedAt)))
     .limit(1);
   return rows.at(0);
 }
@@ -29,7 +29,7 @@ export async function findUserByPhone(phone: string) {
   const rows = await getDb()
     .select()
     .from(schema.users)
-    .where(eq(schema.users.phoneHash, phoneHash(phone)))
+    .where(and(eq(schema.users.phoneHash, phoneHash(phone)), isNull(schema.users.deletedAt)))
     .limit(1);
   return rows.at(0);
 }
@@ -37,7 +37,8 @@ export async function findUserByPhone(phone: string) {
 export async function findUsersByName(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return [];
-  return getDb().select().from(schema.users).where(eq(schema.users.name, trimmed)).limit(2);
+  return getDb().select().from(schema.users)
+    .where(and(eq(schema.users.name, trimmed), isNull(schema.users.deletedAt))).limit(2);
 }
 
 export async function findUserByLoginIdentifier(identifier: string) {
@@ -133,6 +134,7 @@ export async function listUsers(options?: { offset?: number; limit?: number }) {
   const rows = await getDb()
     .select()
     .from(schema.users)
+    .where(isNull(schema.users.deletedAt))
     .orderBy(schema.users.createdAt)
     .limit(limit)
     .offset(offset);
@@ -142,7 +144,8 @@ export async function listUsers(options?: { offset?: number; limit?: number }) {
 export async function countUsers(): Promise<number> {
   const result = await getDb()
     .select({ value: count() })
-    .from(schema.users);
+    .from(schema.users)
+    .where(isNull(schema.users.deletedAt));
   return result[0]?.value ?? 0;
 }
 
@@ -150,7 +153,10 @@ export async function findAdminCount(): Promise<number> {
   const result = await getDb()
     .select({ value: count() })
     .from(schema.users)
-    .where(or(eq(schema.users.role, "admin"), eq(schema.users.role, "super_admin")));
+    .where(and(
+      or(eq(schema.users.role, "admin"), eq(schema.users.role, "super_admin")),
+      isNull(schema.users.deletedAt),
+    ));
   return result[0]?.value ?? 0;
 }
 
@@ -174,8 +180,48 @@ export async function findPublicUsersByIds(ids: number[]) {
   return new Map(rows.map((row) => [row.id, toPublicUser(row)]));
 }
 
-export async function deleteUser(id: number) {
-  await getDb()
-    .delete(schema.users)
-    .where(eq(schema.users.id, id));
+export async function deleteUser(id: number, deletedBy: number, deletionReason?: string) {
+  await getDb().transaction(async (tx) => {
+    const [user] = await tx.select().from(schema.users)
+      .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt))).limit(1);
+    if (!user) throw new Error("用户不存在或已经注销。");
+    const now = new Date();
+    await tx.update(schema.users).set({
+      name: `已注销用户-${user.publicId ?? user.id}`,
+      email: null,
+      phoneHash: null,
+      phoneEncrypted: null,
+      password: null,
+      avatar: null,
+      role: "user",
+      level: 0,
+      emailVerified: false,
+      phoneVerified: false,
+      sessionVersion: user.sessionVersion + 1,
+      lockedUntil: null,
+      deletedAt: now,
+      deletedBy,
+      deletionReason: deletionReason?.trim() || null,
+      updatedAt: now,
+    }).where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)));
+    await tx.update(schema.sessions).set({ revokedAt: now })
+      .where(and(eq(schema.sessions.userId, id), isNull(schema.sessions.revokedAt)));
+    await tx.update(schema.profileChangeRequests).set({
+      status: "rejected",
+      reviewedBy: deletedBy,
+      reviewedAt: now,
+      rejectReason: "账号已注销",
+      updatedAt: now,
+    }).where(and(
+      eq(schema.profileChangeRequests.userId, id),
+      eq(schema.profileChangeRequests.status, "pending"),
+    ));
+    await tx.update(schema.accountRecoveryRequests).set({ status: "cancelled", updatedAt: now })
+      .where(and(
+        eq(schema.accountRecoveryRequests.userId, id),
+        inArray(schema.accountRecoveryRequests.status, ["pending", "initial_approved", "final_approved"]),
+      ));
+    await tx.delete(schema.stepUpGrants).where(eq(schema.stepUpGrants.userId, id));
+    await tx.delete(schema.recoveryCodes).where(eq(schema.recoveryCodes.userId, id));
+  });
 }

@@ -77,6 +77,10 @@ export async function createComment(data: {
   replyToCommentId?: number;
   status?: "pending" | "approved";
 }) {
+  const [post] = await getDb().select({ id: schema.posts.id }).from(schema.posts)
+    .where(eq(schema.posts.id, data.postId)).limit(1);
+  if (!post) throw new Error("贴文不存在或已删除。");
+
   const recentDuplicate = await getDb()
     .select({ id: schema.comments.id })
     .from(schema.comments)

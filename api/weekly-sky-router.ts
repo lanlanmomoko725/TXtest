@@ -15,7 +15,7 @@ export const weeklySkyRouter = createRouter({
         content: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      return upsertWeeklySky(input);
+    .mutation(async ({ ctx, input }) => {
+      return upsertWeeklySky(input, ctx.user.id);
     }),
 });

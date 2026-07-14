@@ -1,12 +1,14 @@
-export const PASSWORD_RULE_MESSAGE = "密码至少 8 位，并且必须包含数字、大写字母和小写字母。";
+export {
+  LOGIN_PASSWORD_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MAX_UTF8_BYTES,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULE_MESSAGE,
+  utf8ByteLength,
+  validatePasswordPolicy,
+} from "@contracts/password";
 
-export function validatePasswordPolicy(password: string): string | null {
-  if (password.length < 8) return PASSWORD_RULE_MESSAGE;
-  if (!/[0-9]/.test(password)) return PASSWORD_RULE_MESSAGE;
-  if (!/[a-z]/.test(password)) return PASSWORD_RULE_MESSAGE;
-  if (!/[A-Z]/.test(password)) return PASSWORD_RULE_MESSAGE;
-  return null;
-}
+import { validatePasswordPolicy } from "@contracts/password";
 
 export function assertPasswordPolicy(password: string) {
   const error = validatePasswordPolicy(password);

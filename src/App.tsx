@@ -8,6 +8,7 @@ import PostDetail from "./pages/PostDetail"
 import CreatePost from "./pages/CreatePost"
 import Profile from "./pages/Profile"
 import AccountInfo from "./pages/AccountInfo"
+import AccountRecovery from "./pages/AccountRecovery"
 import Featured from "./pages/Featured"
 import WeeklySky from "./pages/WeeklySky"
 import Activities from "./pages/Activities"
@@ -26,6 +27,7 @@ import AdminUsers from "./pages/admin/Users"
 import AdminAuditLogs from "./pages/admin/AuditLogs"
 import AdminProfileReviews from "./pages/admin/ProfileReviews"
 import AdminCommentReviews from "./pages/admin/CommentReviews"
+import AdminRecoveryReviews from "./pages/admin/RecoveryReviews"
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
 import ScrollManager from "./components/ScrollManager"
@@ -75,10 +77,12 @@ export default function App() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/profile-reviews" element={<AdminProfileReviews />} />
         <Route path="/admin/comment-reviews" element={<AdminCommentReviews />} />
+        <Route path="/admin/recovery-reviews" element={<AdminRecoveryReviews />} />
         <Route path="/admin/audit" element={<AdminAuditLogs />} />
       </Route>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/account-recovery" element={<AccountRecovery />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   )

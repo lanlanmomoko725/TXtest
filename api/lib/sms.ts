@@ -1,10 +1,19 @@
 import * as DypnsSdk from "@alicloud/dypnsapi20170525";
 import * as OpenApiCore from "@alicloud/openapi-core";
 import { randomUUID } from "crypto";
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import * as schema from "@db/schema";
 import { env } from "./env";
-import { normalizePhone } from "./identity";
+import { normalizePhone, phoneHash } from "./identity";
+import { getDb } from "../queries/connection";
 
-type SmsPurpose = "register" | "login" | "bind_phone";
+export type SmsPurpose =
+  | "register"
+  | "login"
+  | "bind_phone"
+  | "bind_phone_old"
+  | "bind_phone_new"
+  | "recovery_new_phone";
 
 type SmsClientLike = {
   sendSmsVerifyCodeWithOptions(request: unknown, runtime: unknown): Promise<SmsSendResponse>;
@@ -158,6 +167,56 @@ function devSmsAllowed(code?: string) {
   return !env.isProduction && (!isSmsConfigured() || code === "000000" || code === "dev-pass");
 }
 
+async function recordSmsChallenge(phone: string, purpose: SmsPurpose) {
+  const subject = phoneHash(phone);
+  await getDb()
+    .update(schema.smsVerificationChallenges)
+    .set({ consumedAt: new Date() })
+    .where(
+      and(
+        eq(schema.smsVerificationChallenges.phoneHash, subject),
+        eq(schema.smsVerificationChallenges.purpose, purpose),
+        isNull(schema.smsVerificationChallenges.consumedAt),
+      ),
+    );
+  await getDb().insert(schema.smsVerificationChallenges).values({
+    phoneHash: subject,
+    purpose,
+    expiresAt: new Date(Date.now() + env.aliyunSmsValidTimeSeconds * 1000),
+    createdAt: new Date(),
+  });
+}
+
+async function findSmsChallenge(phone: string, purpose: SmsPurpose) {
+  const [challenge] = await getDb()
+    .select()
+    .from(schema.smsVerificationChallenges)
+    .where(
+      and(
+        eq(schema.smsVerificationChallenges.phoneHash, phoneHash(phone)),
+        eq(schema.smsVerificationChallenges.purpose, purpose),
+        isNull(schema.smsVerificationChallenges.consumedAt),
+        gt(schema.smsVerificationChallenges.expiresAt, new Date()),
+      ),
+    )
+    .orderBy(desc(schema.smsVerificationChallenges.createdAt))
+    .limit(1);
+  if (!challenge) throw new Error(SMS_VERIFY_FAILED_MESSAGE);
+  return challenge;
+}
+
+async function consumeSmsChallenge(id: number) {
+  const result = await getDb()
+    .update(schema.smsVerificationChallenges)
+    .set({ consumedAt: new Date() })
+    .where(and(eq(schema.smsVerificationChallenges.id, id), isNull(schema.smsVerificationChallenges.consumedAt)));
+  const header = Array.isArray(result) ? result[0] : result;
+  const affectedRows = header && typeof header === "object" && "affectedRows" in header
+    ? Number((header as { affectedRows: unknown }).affectedRows)
+    : 0;
+  if (affectedRows !== 1) throw new Error(SMS_VERIFY_FAILED_MESSAGE);
+}
+
 export async function sendSmsCode(phone: string, purpose: SmsPurpose) {
   const normalizedPhone = normalizePhone(phone);
 
@@ -167,6 +226,7 @@ export async function sendSmsCode(phone: string, purpose: SmsPurpose) {
 
   if (!isSmsConfigured()) {
     if (!env.isProduction) {
+      await recordSmsChallenge(normalizedPhone, purpose);
       return { success: true, message: "开发环境短信验证码：000000" };
     }
     throw new Error(SMS_NOT_CONFIGURED_MESSAGE);
@@ -204,6 +264,7 @@ export async function sendSmsCode(phone: string, purpose: SmsPurpose) {
       throw new Error(SMS_SEND_FAILED_MESSAGE);
     }
 
+    await recordSmsChallenge(normalizedPhone, purpose);
     return { success: true };
   } catch (err) {
     if (err instanceof Error && err.message === SMS_SEND_FAILED_MESSAGE) {
@@ -219,11 +280,13 @@ export async function sendSmsCode(phone: string, purpose: SmsPurpose) {
   }
 }
 
-export async function verifySmsCode(phone: string, code: string) {
+export async function verifySmsCode(phone: string, code: string, purpose: SmsPurpose = "login") {
   const normalizedPhone = normalizePhone(phone);
   const verifyCode = code.trim();
+  const challenge = await findSmsChallenge(normalizedPhone, purpose);
 
   if (devSmsAllowed(verifyCode)) {
+    await consumeSmsChallenge(challenge.id);
     return;
   }
 
@@ -257,6 +320,7 @@ export async function verifySmsCode(phone: string, code: string) {
       });
       throw new Error(SMS_VERIFY_FAILED_MESSAGE);
     }
+    await consumeSmsChallenge(challenge.id);
   } catch (err) {
     if (err instanceof Error && err.message === SMS_VERIFY_FAILED_MESSAGE) {
       throw err;

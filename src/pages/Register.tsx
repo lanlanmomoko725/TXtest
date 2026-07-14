@@ -4,20 +4,12 @@ import { Link, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { AliyunCaptchaButton } from "@/components/AliyunCaptchaButton";
 import { USERNAME_HINT, USERNAME_MAX_UNITS, USERNAME_PLACEHOLDER } from "@contracts/username";
+import { PASSWORD_MAX_LENGTH, validatePasswordPolicy } from "@contracts/password";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
-
-function passwordError(password: string) {
-  const message = "密码至少 8 位，并包含数字、大写字母和小写字母。";
-  if (password.length < 8) return message;
-  if (!/[0-9]/.test(password)) return message;
-  if (!/[a-z]/.test(password)) return message;
-  if (!/[A-Z]/.test(password)) return message;
-  return "";
-}
 
 function normalizePhoneInput(value: string) {
   return value.replace(/[^\d]/g, "").slice(0, 11);
@@ -68,7 +60,7 @@ export default function Register() {
 
   const normalizedPhone = phone.trim();
   const normalizedEmail = email.trim();
-  const currentPasswordError = useMemo(() => (password ? passwordError(password) : ""), [password]);
+  const currentPasswordError = useMemo(() => (password ? validatePasswordPolicy(password) ?? "" : ""), [password]);
   const canSubmit =
     normalizedPhone.length === 11 &&
     smsCode.length >= 4 &&
@@ -243,6 +235,7 @@ export default function Register() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                maxLength={PASSWORD_MAX_LENGTH}
                 className="mt-1.5 bg-background"
                 required
               />
@@ -256,6 +249,7 @@ export default function Register() {
                 autoComplete="new-password"
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
+                maxLength={PASSWORD_MAX_LENGTH}
                 className="mt-1.5 bg-background"
                 required
               />

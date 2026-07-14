@@ -23,6 +23,10 @@ function captchaRegion(): "cn" | "sgp" {
 const emailAuthEnabled = optional("EMAIL_AUTH_ENABLED") !== "false";
 const smsAuthEnabled = optional("SMS_AUTH_ENABLED") !== "false";
 const isProduction = process.env.NODE_ENV === "production";
+const uploadOwnershipMode = optional("UPLOAD_OWNERSHIP_MODE") || "log";
+if (uploadOwnershipMode !== "log" && uploadOwnershipMode !== "enforce") {
+  throw new Error("UPLOAD_OWNERSHIP_MODE must be either 'log' or 'enforce'.");
+}
 
 export const env = {
   appId: optional("APP_ID"),
@@ -57,4 +61,9 @@ export const env = {
   databaseSslCaPath: optional("DATABASE_SSL_CA_PATH"),
   commentBlocklist: optional("COMMENT_BLOCKLIST"),
   commentBlockPatterns: optional("COMMENT_BLOCK_PATTERNS"),
+  uploadOwnershipMode: uploadOwnershipMode as "log" | "enforce",
+  accountRecoveryEnabled: optional("ACCOUNT_RECOVERY_ENABLED") === "true",
+  publicAppUrl: optional("PUBLIC_APP_URL"),
+  smsNoticeWebhookUrl: optional("SMS_NOTICE_WEBHOOK_URL"),
+  smsNoticeWebhookSecret: optional("SMS_NOTICE_WEBHOOK_SECRET"),
 };
