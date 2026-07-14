@@ -1,5 +1,6 @@
 import {
   type AnyMySqlColumn,
+  foreignKey,
   mysqlTable,
   mysqlEnum,
   serial,
@@ -13,6 +14,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
@@ -82,15 +84,22 @@ export type AccountIdSequence = typeof accountIdSequences.$inferSelect;
 export const adminEmailAllowlist = mysqlTable("admin_email_allowlist", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 320 }).unique().notNull(),
-  createdBy: bigint("createdBy", { mode: "number", unsigned: true }).references(() => users.id, {
-    onDelete: "set null",
-  }),
+  createdBy: bigint("createdBy", { mode: "number", unsigned: true }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  usedBy: bigint("usedBy", { mode: "number", unsigned: true }).references(() => users.id, {
-    onDelete: "set null",
-  }),
+  usedBy: bigint("usedBy", { mode: "number", unsigned: true }),
   usedAt: timestamp("usedAt"),
-});
+}, (table) => ({
+  createdByFk: foreignKey({
+    name: "admin_allowlist_createdBy_users_id_fk",
+    columns: [table.createdBy],
+    foreignColumns: [users.id],
+  }).onDelete("set null"),
+  usedByFk: foreignKey({
+    name: "admin_allowlist_usedBy_users_id_fk",
+    columns: [table.usedBy],
+    foreignColumns: [users.id],
+  }).onDelete("set null"),
+}));
 
 export type AdminEmailAllowlist = typeof adminEmailAllowlist.$inferSelect;
 
@@ -164,15 +173,11 @@ export type SecurityEvent = typeof securityEvents.$inferSelect;
 
 export const profileChangeRequests = mysqlTable("profile_change_requests", {
   id: serial("id").primaryKey(),
-  userId: bigint("userId", { mode: "number", unsigned: true }).notNull().references(() => users.id, {
-    onDelete: "restrict",
-  }),
+  userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
   type: mysqlEnum("type", ["name", "avatar"]).notNull(),
   value: text("value").notNull(),
   status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
-  reviewedBy: bigint("reviewedBy", { mode: "number", unsigned: true }).references(() => users.id, {
-    onDelete: "set null",
-  }),
+  reviewedBy: bigint("reviewedBy", { mode: "number", unsigned: true }),
   reviewedAt: timestamp("reviewedAt"),
   rejectReason: varchar("rejectReason", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -180,22 +185,36 @@ export const profileChangeRequests = mysqlTable("profile_change_requests", {
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date()),
-});
+}, (table) => ({
+  userFk: foreignKey({
+    name: "profile_changes_userId_users_id_fk",
+    columns: [table.userId],
+    foreignColumns: [users.id],
+  }).onDelete("restrict"),
+  reviewedByFk: foreignKey({
+    name: "profile_changes_reviewedBy_users_id_fk",
+    columns: [table.reviewedBy],
+    foreignColumns: [users.id],
+  }).onDelete("set null"),
+}));
 
 export type ProfileChangeRequest = typeof profileChangeRequests.$inferSelect;
 
 export const uploadedFiles = mysqlTable("uploaded_files", {
   id: serial("id").primaryKey(),
   path: varchar("path", { length: 255 }).unique().notNull(),
-  uploaderUserId: bigint("uploaderUserId", { mode: "number", unsigned: true }).notNull().references(() => users.id, {
-    onDelete: "restrict",
-  }),
+  uploaderUserId: bigint("uploaderUserId", { mode: "number", unsigned: true }).notNull(),
   purpose: mysqlEnum("purpose", ["avatar", "content"]).notNull(),
   sizeBytes: int("sizeBytes", { unsigned: true }).notNull(),
   format: varchar("format", { length: 16 }).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   uploaderIdx: index("uploaded_files_uploader_idx").on(table.uploaderUserId, table.createdAt),
+  uploaderFk: foreignKey({
+    name: "uploaded_files_uploader_users_id_fk",
+    columns: [table.uploaderUserId],
+    foreignColumns: [users.id],
+  }).onDelete("restrict"),
 }));
 
 export type UploadedFile = typeof uploadedFiles.$inferSelect;
@@ -206,14 +225,14 @@ export const smsVerificationChallenges = mysqlTable("sms_verification_challenges
   purpose: varchar("purpose", { length: 50 }).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   subjectIdx: index("sms_challenges_subject_idx").on(table.phoneHash, table.purpose, table.createdAt),
 }));
 
 export const stepUpGrants = mysqlTable("step_up_grants", {
   id: serial("id").primaryKey(),
-  tokenHash: varchar("tokenHash", { length: 128 }).unique().notNull(),
+  tokenHash: varchar("tokenHash", { length: 128 }).notNull(),
   userId: bigint("userId", { mode: "number", unsigned: true }).notNull().references(() => users.id, {
     onDelete: "cascade",
   }),
@@ -222,8 +241,9 @@ export const stepUpGrants = mysqlTable("step_up_grants", {
   method: mysqlEnum("method", ["password", "email", "phone"]).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
+  tokenUnique: uniqueIndex("step_up_grants_token_unique").on(table.tokenHash),
   userIdx: index("step_up_grants_user_idx").on(table.userId, table.createdAt),
 }));
 
@@ -232,18 +252,17 @@ export const recoveryCodes = mysqlTable("recovery_codes", {
   userId: bigint("userId", { mode: "number", unsigned: true }).notNull().references(() => users.id, {
     onDelete: "cascade",
   }),
-  codeHash: varchar("codeHash", { length: 128 }).unique().notNull(),
+  codeHash: varchar("codeHash", { length: 128 }).notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
+  hashUnique: uniqueIndex("recovery_codes_hash_unique").on(table.codeHash),
   userIdx: index("recovery_codes_user_idx").on(table.userId, table.createdAt),
 }));
 
 export const accountRecoveryRequests = mysqlTable("account_recovery_requests", {
   id: serial("id").primaryKey(),
-  userId: bigint("userId", { mode: "number", unsigned: true }).notNull().references(() => users.id, {
-    onDelete: "restrict",
-  }),
+  userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
   contactType: mysqlEnum("contactType", ["email", "phone"]).notNull(),
   newContactHash: varchar("newContactHash", { length: 128 }).notNull(),
   newContactEncrypted: text("newContactEncrypted").notNull(),
@@ -257,46 +276,62 @@ export const accountRecoveryRequests = mysqlTable("account_recovery_requests", {
   ]).default("pending").notNull(),
   evidence: json("evidence").$type<Record<string, unknown> | null>(),
   availableAt: timestamp("availableAt").notNull(),
-  cancelTokenHash: varchar("cancelTokenHash", { length: 128 }).unique().notNull(),
+  cancelTokenHash: varchar("cancelTokenHash", { length: 128 }).notNull(),
   rejectReason: varchar("rejectReason", { length: 255 }),
   completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updatedAt").default(sql`CURRENT_TIMESTAMP`).notNull().$onUpdate(() => new Date()),
 }, (table) => ({
+  cancelTokenUnique: uniqueIndex("account_recovery_cancel_token_unique").on(table.cancelTokenHash),
   userStatusIdx: index("account_recovery_user_status_idx").on(table.userId, table.status, table.createdAt),
   availableIdx: index("account_recovery_available_idx").on(table.status, table.availableAt),
+  userFk: foreignKey({
+    name: "account_recovery_userId_users_id_fk",
+    columns: [table.userId],
+    foreignColumns: [users.id],
+  }).onDelete("restrict"),
 }));
 
 export type AccountRecoveryRequest = typeof accountRecoveryRequests.$inferSelect;
 
 export const accountRecoveryReviews = mysqlTable("account_recovery_reviews", {
   id: serial("id").primaryKey(),
-  requestId: bigint("requestId", { mode: "number", unsigned: true }).notNull().references(
-    () => accountRecoveryRequests.id,
-    { onDelete: "cascade" },
-  ),
-  reviewerId: bigint("reviewerId", { mode: "number", unsigned: true }).notNull().references(() => users.id, {
-    onDelete: "restrict",
-  }),
+  requestId: bigint("requestId", { mode: "number", unsigned: true }).notNull(),
+  reviewerId: bigint("reviewerId", { mode: "number", unsigned: true }).notNull(),
   stage: mysqlEnum("stage", ["initial", "final"]).notNull(),
   decision: mysqlEnum("decision", ["approve", "reject"]).notNull(),
   reason: varchar("reason", { length: 255 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   stageUnique: uniqueIndex("account_recovery_review_stage_unique").on(table.requestId, table.stage),
+  requestFk: foreignKey({
+    name: "account_recovery_reviews_request_fk",
+    columns: [table.requestId],
+    foreignColumns: [accountRecoveryRequests.id],
+  }).onDelete("cascade"),
+  reviewerFk: foreignKey({
+    name: "account_recovery_reviews_reviewer_fk",
+    columns: [table.reviewerId],
+    foreignColumns: [users.id],
+  }).onDelete("restrict"),
 }));
 
 export const recoveryCompletionTokens = mysqlTable("recovery_completion_tokens", {
   id: serial("id").primaryKey(),
-  requestId: bigint("requestId", { mode: "number", unsigned: true }).unique().notNull().references(
-    () => accountRecoveryRequests.id,
-    { onDelete: "cascade" },
-  ),
-  tokenHash: varchar("tokenHash", { length: 128 }).unique().notNull(),
+  requestId: bigint("requestId", { mode: "number", unsigned: true }).notNull(),
+  tokenHash: varchar("tokenHash", { length: 128 }).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  requestUnique: uniqueIndex("recovery_completion_request_unique").on(table.requestId),
+  tokenUnique: uniqueIndex("recovery_completion_token_unique").on(table.tokenHash),
+  requestFk: foreignKey({
+    name: "recovery_completion_request_fk",
+    columns: [table.requestId],
+    foreignColumns: [accountRecoveryRequests.id],
+  }).onDelete("cascade"),
+}));
 
 export const notificationOutbox = mysqlTable("notification_outbox", {
   id: serial("id").primaryKey(),
@@ -306,14 +341,27 @@ export const notificationOutbox = mysqlTable("notification_outbox", {
   payload: json("payload").$type<Record<string, unknown>>().notNull(),
   status: mysqlEnum("status", ["pending", "processing", "sent", "failed"]).default("pending").notNull(),
   attempts: int("attempts").default(0).notNull(),
-  availableAt: timestamp("availableAt").defaultNow().notNull(),
+  availableAt: timestamp("availableAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
   lockedAt: timestamp("lockedAt"),
   lastError: varchar("lastError", { length: 500 }),
   sentAt: timestamp("sentAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   pendingIdx: index("notification_outbox_pending_idx").on(table.status, table.availableAt),
 }));
+
+export const integrityOrphanArchive = mysqlTable("integrity_orphan_archive", {
+  id: serial("id").primaryKey(),
+  sourceTable: varchar("sourceTable", { length: 64 }).notNull(),
+  sourceId: varchar("sourceId", { length: 64 }).notNull(),
+  reason: varchar("reason", { length: 120 }).notNull(),
+  payload: json("payload").$type<Record<string, unknown>>().notNull(),
+  archivedAt: timestamp("archivedAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  sourceUnique: uniqueIndex("integrity_orphan_source_unique").on(table.sourceTable, table.sourceId),
+}));
+
+export type IntegrityOrphanArchive = typeof integrityOrphanArchive.$inferSelect;
 
 export const posts = mysqlTable("posts", {
   id: serial("id").primaryKey(),

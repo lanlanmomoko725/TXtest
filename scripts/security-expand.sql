@@ -30,6 +30,10 @@ CALL add_column_if_missing('audit_logs', 'actorName', 'VARCHAR(255) NULL');
 
 DROP PROCEDURE add_column_if_missing;
 
+-- Existing installations may have createdBy as NOT NULL. SET NULL foreign keys require a nullable child column.
+ALTER TABLE `admin_email_allowlist`
+  MODIFY COLUMN `createdBy` BIGINT UNSIGNED NULL;
+
 ALTER TABLE `verificationCodes`
   MODIFY COLUMN `purpose` ENUM(
     'register',

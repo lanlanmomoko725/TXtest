@@ -135,10 +135,10 @@ docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYS
 
 ```bash
 docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < scripts/security-add-foreign-keys.sql
-docker compose exec app npx drizzle-kit push --strict --verbose
+docker compose exec -e NODE_OPTIONS=--max-old-space-size=256 app sh -lc './node_modules/.bin/drizzle-kit push --strict --verbose'
 ```
 
-The final Drizzle command is only a reconciliation check. Read every displayed statement and stop if it proposes destructive or unexpected changes.
+The final Drizzle command is only a reconciliation check. Read every displayed statement and stop if it proposes destructive or unexpected changes. In particular, never approve a proposal to drop `integrity_orphan_archive`; its rows are retained evidence from the reviewed cleanup stage.
 
 7. After seven days of clean ownership logs, set `UPLOAD_OWNERSHIP_MODE=enforce`. Enable `ACCOUNT_RECOVERY_ENABLED=true` only after `PUBLIC_APP_URL`, SMTP, the SMS notification webhook, and two different review accounts are ready. Restart the app after environment changes.
 
