@@ -14,7 +14,6 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
-import { sql } from "drizzle-orm";
 
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
@@ -207,7 +206,7 @@ export const uploadedFiles = mysqlTable("uploaded_files", {
   purpose: mysqlEnum("purpose", ["avatar", "content"]).notNull(),
   sizeBytes: int("sizeBytes", { unsigned: true }).notNull(),
   format: varchar("format", { length: 16 }).notNull(),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   uploaderIdx: index("uploaded_files_uploader_idx").on(table.uploaderUserId, table.createdAt),
   uploaderFk: foreignKey({
@@ -225,7 +224,7 @@ export const smsVerificationChallenges = mysqlTable("sms_verification_challenges
   purpose: varchar("purpose", { length: 50 }).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   subjectIdx: index("sms_challenges_subject_idx").on(table.phoneHash, table.purpose, table.createdAt),
 }));
@@ -241,7 +240,7 @@ export const stepUpGrants = mysqlTable("step_up_grants", {
   method: mysqlEnum("method", ["password", "email", "phone"]).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   tokenUnique: uniqueIndex("step_up_grants_token_unique").on(table.tokenHash),
   userIdx: index("step_up_grants_user_idx").on(table.userId, table.createdAt),
@@ -254,7 +253,7 @@ export const recoveryCodes = mysqlTable("recovery_codes", {
   }),
   codeHash: varchar("codeHash", { length: 128 }).notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   hashUnique: uniqueIndex("recovery_codes_hash_unique").on(table.codeHash),
   userIdx: index("recovery_codes_user_idx").on(table.userId, table.createdAt),
@@ -279,8 +278,8 @@ export const accountRecoveryRequests = mysqlTable("account_recovery_requests", {
   cancelTokenHash: varchar("cancelTokenHash", { length: 128 }).notNull(),
   rejectReason: varchar("rejectReason", { length: 255 }),
   completedAt: timestamp("completedAt"),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
-  updatedAt: timestamp("updatedAt").default(sql`CURRENT_TIMESTAMP`).notNull().$onUpdate(() => new Date()),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
   cancelTokenUnique: uniqueIndex("account_recovery_cancel_token_unique").on(table.cancelTokenHash),
   userStatusIdx: index("account_recovery_user_status_idx").on(table.userId, table.status, table.createdAt),
@@ -301,7 +300,7 @@ export const accountRecoveryReviews = mysqlTable("account_recovery_reviews", {
   stage: mysqlEnum("stage", ["initial", "final"]).notNull(),
   decision: mysqlEnum("decision", ["approve", "reject"]).notNull(),
   reason: varchar("reason", { length: 255 }),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   stageUnique: uniqueIndex("account_recovery_review_stage_unique").on(table.requestId, table.stage),
   requestFk: foreignKey({
@@ -322,7 +321,7 @@ export const recoveryCompletionTokens = mysqlTable("recovery_completion_tokens",
   tokenHash: varchar("tokenHash", { length: 128 }).notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
   consumedAt: timestamp("consumedAt"),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   requestUnique: uniqueIndex("recovery_completion_request_unique").on(table.requestId),
   tokenUnique: uniqueIndex("recovery_completion_token_unique").on(table.tokenHash),
@@ -341,11 +340,11 @@ export const notificationOutbox = mysqlTable("notification_outbox", {
   payload: json("payload").$type<Record<string, unknown>>().notNull(),
   status: mysqlEnum("status", ["pending", "processing", "sent", "failed"]).default("pending").notNull(),
   attempts: int("attempts").default(0).notNull(),
-  availableAt: timestamp("availableAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  availableAt: timestamp("availableAt").defaultNow().notNull(),
   lockedAt: timestamp("lockedAt"),
   lastError: varchar("lastError", { length: 500 }),
   sentAt: timestamp("sentAt"),
-  createdAt: timestamp("createdAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   pendingIdx: index("notification_outbox_pending_idx").on(table.status, table.availableAt),
 }));
@@ -356,7 +355,7 @@ export const integrityOrphanArchive = mysqlTable("integrity_orphan_archive", {
   sourceId: varchar("sourceId", { length: 64 }).notNull(),
   reason: varchar("reason", { length: 120 }).notNull(),
   payload: json("payload").$type<Record<string, unknown>>().notNull(),
-  archivedAt: timestamp("archivedAt").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  archivedAt: timestamp("archivedAt").defaultNow().notNull(),
 }, (table) => ({
   sourceUnique: uniqueIndex("integrity_orphan_source_unique").on(table.sourceTable, table.sourceId),
 }));

@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `uploaded_files` (
   `purpose` ENUM('avatar', 'content') NOT NULL,
   `sizeBytes` INT UNSIGNED NOT NULL,
   `format` VARCHAR(16) NOT NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uploaded_files_path_unique` (`path`),
   KEY `uploaded_files_uploader_idx` (`uploaderUserId`, `createdAt`)
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS `sms_verification_challenges` (
   `purpose` VARCHAR(50) NOT NULL,
   `expiresAt` TIMESTAMP NOT NULL,
   `consumedAt` TIMESTAMP NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   KEY `sms_challenges_subject_idx` (`phoneHash`, `purpose`, `createdAt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS `step_up_grants` (
   `method` ENUM('password', 'email', 'phone') NOT NULL,
   `expiresAt` TIMESTAMP NOT NULL,
   `consumedAt` TIMESTAMP NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   UNIQUE KEY `step_up_grants_token_unique` (`tokenHash`),
   KEY `step_up_grants_user_idx` (`userId`, `createdAt`)
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS `recovery_codes` (
   `userId` BIGINT UNSIGNED NOT NULL,
   `codeHash` VARCHAR(128) NOT NULL,
   `consumedAt` TIMESTAMP NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   UNIQUE KEY `recovery_codes_hash_unique` (`codeHash`),
   KEY `recovery_codes_user_idx` (`userId`, `createdAt`)
@@ -106,8 +106,8 @@ CREATE TABLE IF NOT EXISTS `account_recovery_requests` (
   `cancelTokenHash` VARCHAR(128) NOT NULL,
   `rejectReason` VARCHAR(255) NULL,
   `completedAt` TIMESTAMP NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
+  `updatedAt` TIMESTAMP NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `account_recovery_cancel_token_unique` (`cancelTokenHash`),
   KEY `account_recovery_user_status_idx` (`userId`, `status`, `createdAt`),
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS `account_recovery_reviews` (
   `stage` ENUM('initial', 'final') NOT NULL,
   `decision` ENUM('approve', 'reject') NOT NULL,
   `reason` VARCHAR(255) NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   UNIQUE KEY `account_recovery_review_stage_unique` (`requestId`, `stage`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS `recovery_completion_tokens` (
   `tokenHash` VARCHAR(128) NOT NULL,
   `expiresAt` TIMESTAMP NOT NULL,
   `consumedAt` TIMESTAMP NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   UNIQUE KEY `recovery_completion_request_unique` (`requestId`),
   UNIQUE KEY `recovery_completion_token_unique` (`tokenHash`)
@@ -146,11 +146,11 @@ CREATE TABLE IF NOT EXISTS `notification_outbox` (
   `payload` JSON NOT NULL,
   `status` ENUM('pending', 'processing', 'sent', 'failed') NOT NULL DEFAULT 'pending',
   `attempts` INT NOT NULL DEFAULT 0,
-  `availableAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `availableAt` TIMESTAMP NOT NULL DEFAULT (now()),
   `lockedAt` TIMESTAMP NULL,
   `lastError` VARCHAR(500) NULL,
   `sentAt` TIMESTAMP NULL,
-  `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `createdAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   KEY `notification_outbox_pending_idx` (`status`, `availableAt`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS `integrity_orphan_archive` (
   `sourceId` VARCHAR(64) NOT NULL,
   `reason` VARCHAR(120) NOT NULL,
   `payload` JSON NOT NULL,
-  `archivedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `archivedAt` TIMESTAMP NOT NULL DEFAULT (now()),
   PRIMARY KEY (`id`),
   UNIQUE KEY `integrity_orphan_source_unique` (`sourceTable`, `sourceId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
